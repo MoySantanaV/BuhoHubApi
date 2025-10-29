@@ -31,7 +31,7 @@ export const createAuthMiddleware = (auth: Auth) => {
     };
 
     // Middleware opcional: verificar si el usuario está autenticado
-    const optionalAuth = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const optionalAuth = async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
         try {
             const session = await auth.api.getSession({
                 headers: fromNodeHeaders(req.headers),

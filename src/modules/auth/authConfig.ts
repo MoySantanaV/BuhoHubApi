@@ -1,7 +1,7 @@
 import { betterAuth } from 'better-auth';
 import { mongodbAdapter } from 'better-auth/adapters/mongodb';
 import mongoose from 'mongoose';
-import { env } from './env.js';
+import { env } from '../../shared/config/envConfig.js';
 
 // Esta función debe llamarse después de conectar a MongoDB
 export const createAuth = () => {

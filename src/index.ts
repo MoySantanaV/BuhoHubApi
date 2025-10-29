@@ -1,11 +1,11 @@
 import { toNodeHandler } from 'better-auth/node';
 import cors from 'cors';
-import express from 'express';
+import express, { Request, Response } from 'express';
 import mongoose from 'mongoose';
-import { createAuth } from './config/auth.js';
-import { env } from './config/env.js';
-import { connectDatabase } from './config/mongodb.js';
-import { createUserRoutes } from './routes/user/user.js';
+import apiRouter from './apiRouter.js';
+import { createAuth } from './modules/auth/authConfig.js';
+import { connectDatabase } from './shared/config/mongodb.js';
+import { env } from './shared/config/envConfig.js';
 
 const app = express();
 
@@ -26,38 +26,16 @@ const auth = createAuth();
 console.log('✅ Better Auth initialized');
 
 // Mount Better Auth handler BEFORE express.json()
-app.use('/api/auth', toNodeHandler(auth));
+app.use('/api/v1/auth', toNodeHandler(auth));
 
 // Mount express.json() and other middleware AFTER Better Auth handler
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Mount user routes
-app.use('/api/users', createUserRoutes(auth));
-
-// Ruta GET simple para iniciar Google OAuth
-app.get('/login/google', async (req, res) => {
-    try {
-        const result = await auth.api.signInSocial({
-            body: {
-                provider: 'google',
-                callbackURL: (req.query.callback as string) || '/',
-            },
-        });
-
-        if (result.url) {
-            res.redirect(result.url);
-        } else {
-            res.status(500).json({ error: 'No se pudo generar URL de OAuth' });
-        }
-    } catch (error) {
-        console.error('Error en Google OAuth:', error);
-        res.status(500).json({ error: 'Error iniciando OAuth' });
-    }
-});
+app.use('/api/v1', apiRouter(auth));
 
 // Health check
-app.get('/health', (_req, res) => {
+app.get('/health', (_req: Request, res: Response) => {
     res.json({
         status: 'ok',
         environment: env.nodeEnv,
@@ -67,7 +45,7 @@ app.get('/health', (_req, res) => {
 });
 
 // Root endpoint
-app.get('/', (_req, res) => {
+app.get('/', (_req: Request, res: Response) => {
     res.json({
         message: 'API funcionando correctamente',
         environment: env.nodeEnv,
@@ -81,6 +59,7 @@ app.get('/', (_req, res) => {
     });
 });
 
+// Start server
 app.listen(env.port, () => {
     console.log('=================================');
     console.log(`✔ BuhoHub API listening on port ${env.port}`);
