@@ -1,40 +1,46 @@
 import { toNodeHandler } from 'better-auth/node';
+import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express, { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import apiRouter from './apiRouter.js';
 import { createAuth } from './modules/auth/authConfig.js';
-import { connectDatabase } from './shared/config/mongodb.js';
 import { env } from './shared/config/envConfig.js';
+import { connectDatabase } from './shared/config/mongodb.js';
 
 const app = express();
 
-// CORS configuration
+// CORS
 app.use(
     cors({
-        origin: env.nodeEnv === 'production' ? env.betterAuth.url : '*',
-        methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+        origin: 'http://localhost:3000',
         credentials: true,
+        allowedHeaders: ['Content-Type', 'Authorization'],
+        exposedHeaders: ['Set-Cookie'],
     })
 );
 
-// Connect to database before mounting routes
+// Cookie parser
+app.use(cookieParser());
+
+// Database
 await connectDatabase();
 
-// Create auth instance after database connection
+// Better Auth
 const auth = createAuth();
 console.log('✅ Better Auth initialized');
 
-// Mount Better Auth handler BEFORE express.json()
-app.use('/api/v1/auth', toNodeHandler(auth));
+// ⭐ SIN middleware de debug
+app.use('/api/auth', toNodeHandler(auth));
 
-// Mount express.json() and other middleware AFTER Better Auth handler
+// Body parsers
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Routes
 app.use('/api/v1', apiRouter(auth));
 
-// Health check
+// Health
 app.get('/health', (_req: Request, res: Response) => {
     res.json({
         status: 'ok',
@@ -44,26 +50,23 @@ app.get('/health', (_req: Request, res: Response) => {
     });
 });
 
-// Root endpoint
+// Root
 app.get('/', (_req: Request, res: Response) => {
     res.json({
-        message: 'API funcionando correctamente',
+        message: 'BuhoHub API',
         environment: env.nodeEnv,
         endpoints: {
             health: '/health',
-            testGoogleLogin: '/test-google-login',
-            loginGoogle: '/login/google',
+            test: '/api/v1/test-google-login',
             auth: '/api/auth/*',
-            session: '/api/auth/session',
         },
     });
 });
 
-// Start server
 app.listen(env.port, () => {
     console.log('=================================');
     console.log(`✔ BuhoHub API listening on port ${env.port}`);
-    console.log(`🔐 Test Google login: ${env.betterAuth.url}/test-google-login`);
+    console.log(`🔐 Test: ${env.betterAuth.url}/api/v1/test-google-login`);
     console.log(`🌍 Environment: ${env.nodeEnv}`);
     console.log('=================================');
 });

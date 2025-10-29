@@ -1,32 +1,9 @@
 import type { Auth } from 'better-auth';
 import { Request, Response, Router } from 'express';
 
-// Factory function que recibe la instancia de auth
 export const createAuthRoutes = (auth: Auth) => {
     const router = Router();
 
-    // Ruta GET simple para iniciar Google OAuth
-    router.get('/login/google', async (req: Request, res: Response) => {
-        try {
-            const result = await auth.api.signInSocial({
-                body: {
-                    provider: 'google',
-                    callbackURL: (req.query.callback as string) || '/',
-                },
-            });
-
-            if (result.url) {
-                res.redirect(result.url);
-            } else {
-                res.status(500).json({ error: 'No se pudo generar URL de OAuth' });
-            }
-        } catch (error) {
-            console.error('Error en Google OAuth:', error);
-            res.status(500).json({ error: 'Error iniciando OAuth' });
-        }
-    });
-
-    // Página HTML de prueba para Google OAuth
     router.get('/test-google-login', (_req: Request, res: Response) => {
         res.send(`
     <!DOCTYPE html>
@@ -58,18 +35,21 @@ export const createAuthRoutes = (auth: Auth) => {
           font-size: 16px;
           border-radius: 4px;
           cursor: pointer;
+          margin: 10px;
         }
         button:hover {
           background: #357ae8;
         }
-        a {
-          display: inline-block;
-          margin-top: 20px;
-          color: #4285f4;
-          text-decoration: none;
+        .secondary {
+          background: #34a853;
         }
-        a:hover {
-          text-decoration: underline;
+        .secondary:hover {
+          background: #2d9248;
+        }
+        #status {
+          margin-top: 20px;
+          padding: 10px;
+          border-radius: 4px;
         }
       </style>
     </head>
@@ -77,10 +57,109 @@ export const createAuthRoutes = (auth: Auth) => {
       <div class="container">
         <h1>🔐 Test Google OAuth</h1>
         <p>Haz clic para iniciar sesión con Google</p>
-        <button onclick="location.href='/login/google'">Sign in with Google</button>
+        
+        <button onclick="loginWithGoogle()">
+          Sign in with Google
+        </button>
+        
         <br>
-        <a href="/api/auth/session" target="_blank">Ver sesión actual</a>
+        
+        <button class="secondary" onclick="checkSession()">
+          Check Session
+        </button>
+        
+        <div id="status"></div>
       </div>
+
+      <script>
+        async function loginWithGoogle() {
+          try {
+            console.log('🚀 Iniciando login...');
+            
+            const response = await fetch('/api/auth/sign-in/social', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                provider: 'google',
+                callbackURL: '/api/v1/test-google-login'
+              }),
+              credentials: 'include'
+            });
+
+            console.log('📥 Response status:', response.status);
+            
+            const data = await response.json();
+            console.log('📦 Response data:', data);
+            
+            // ⭐ REDIRECCIÓN SIMPLE Y DIRECTA
+            if (data.url) {
+              console.log('➡️  Redirigiendo a:', data.url);
+              // Redirigir inmediatamente
+              window.location.href = data.url;
+            } else {
+              console.error('❌ No se recibió URL');
+              alert('Error: No se recibió URL de Google');
+            }
+            
+          } catch (error) {
+            console.error('❌ Error:', error);
+            alert('Error: ' + error.message);
+          }
+        }
+
+        async function checkSession() {
+          try {
+            console.log('🔍 Verificando sesión...');
+            
+            const response = await fetch('/api/auth/session', {
+              credentials: 'include'
+            });
+            
+            console.log('Response status:', response.status);
+            console.log('Response headers:', response.headers.get('content-type'));
+            
+            const text = await response.text();
+            console.log('Raw response:', text);
+            
+            const statusDiv = document.getElementById('status');
+            
+            if (!text) {
+              statusDiv.innerHTML = '❌ Respuesta vacía del servidor';
+              statusDiv.style.background = '#f8d7da';
+              statusDiv.style.color = '#721c24';
+              return;
+            }
+            
+            const data = JSON.parse(text);
+            console.log('Session data:', data);
+            
+            if (data.user) {
+              statusDiv.innerHTML = '✅ Logged in: ' + data.user.email;
+              statusDiv.style.background = '#d4edda';
+              statusDiv.style.color = '#155724';
+            } else {
+              statusDiv.innerHTML = '❌ Not logged in';
+              statusDiv.style.background = '#fff3cd';
+              statusDiv.style.color = '#856404';
+            }
+            
+          } catch (error) {
+            console.error('Error checking session:', error);
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = '❌ Error: ' + error.message;
+            statusDiv.style.background = '#f8d7da';
+            statusDiv.style.color = '#721c24';
+          }
+        }
+
+        // Verificar sesión al cargar
+        window.addEventListener('load', () => {
+          console.log('✅ Página cargada');
+          checkSession();
+        });
+      </script>
     </body>
     </html>
   `);
