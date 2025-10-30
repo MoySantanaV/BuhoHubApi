@@ -1,21 +1,16 @@
-import type { Auth } from 'better-auth';
 import { Router } from 'express';
-import { createAuthMiddleware } from '../auth/authMiddleware.js';
-import { getProfile, getMe, getPublicInfo } from './userController.js';
+import { authenticate, optionalAuth } from '../auth/authMiddleware.js';
+import { getMe, getProfile, getPublicInfo } from './userController.js';
 
-// Factory function que recibe la instancia de auth
-export const createUserRoutes = (auth: Auth) => {
-    const router = Router();
-    const { authenticate, optionalAuth } = createAuthMiddleware(auth);
+const router = Router();
 
-    // Ruta protegida - requiere autenticación
-    router.get('/profile', authenticate, getProfile);
+// Ruta protegida - requiere autenticación
+router.get('/profile', authenticate, getProfile);
 
-    // Ruta pública con info opcional del usuario
-    router.get('/public', optionalAuth, getPublicInfo);
+// Ruta pública con info opcional del usuario
+router.get('/public', optionalAuth, getPublicInfo);
 
-    // Ejemplo: obtener sesión actual (endpoint útil para el frontend)
-    router.get('/me', authenticate, getMe);
+// Ejemplo: obtener sesión actual (endpoint útil para el frontend)
+router.get('/me', authenticate, getMe);
 
-    return router;
-};
+export default router;

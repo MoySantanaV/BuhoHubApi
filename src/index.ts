@@ -1,27 +1,42 @@
 import { toNodeHandler } from 'better-auth/node';
-import cookieParser from 'cookie-parser';
+//import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express, { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import apiRouter from './apiRouter.js';
-import { createAuth } from './modules/auth/authConfig.js';
+import { createAuth, createAuthMobile } from './modules/auth/authConfig.js';
 import { env } from './shared/config/envConfig.js';
 import { connectDatabase } from './shared/config/mongodb.js';
 
 const app = express();
 
-// CORS
+// CORS - Permitir Web y React Native
 app.use(
     cors({
-        origin: 'http://localhost:3000',
+        origin: (origin, callback) => {
+            const allowedOrigins = [
+                'http://localhost:3000', // Next.js web
+                'http://192.168.100.24:3000', // Web desde IP local
+                'exp://192.168.100.24:8081',
+                'http://192.168.100.24:',
+            ];
+
+            // Permitir requests sin origin (React Native/Expo) o de orígenes permitidos
+            if (!origin || allowedOrigins.includes(origin)) {
+                callback(null, true);
+            } else {
+                callback(null, true); // En desarrollo permitir todos
+            }
+        },
         credentials: true,
         allowedHeaders: ['Content-Type', 'Authorization'],
         exposedHeaders: ['Set-Cookie'],
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     })
 );
 
 // Cookie parser
-app.use(cookieParser());
+//app.use(cookieParser());
 
 // Database
 await connectDatabase();
@@ -33,12 +48,15 @@ console.log('✅ Better Auth initialized');
 // ⭐ SIN middleware de debug
 app.use('/api/auth', toNodeHandler(auth));
 
+const authMobile = createAuthMobile();
+app.use('/api/auth-mobile', toNodeHandler(authMobile));
+
 // Body parsers
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
-app.use('/api/v1', apiRouter(auth));
+app.use('/api/v1', apiRouter);
 
 // Health
 app.get('/health', (_req: Request, res: Response) => {
@@ -57,7 +75,6 @@ app.get('/', (_req: Request, res: Response) => {
         environment: env.nodeEnv,
         endpoints: {
             health: '/health',
-            test: '/api/v1/test-google-login',
             auth: '/api/auth/*',
         },
     });
@@ -66,7 +83,6 @@ app.get('/', (_req: Request, res: Response) => {
 app.listen(env.port, () => {
     console.log('=================================');
     console.log(`✔ BuhoHub API listening on port ${env.port}`);
-    console.log(`🔐 Test: ${env.betterAuth.url}/api/v1/test-google-login`);
     console.log(`🌍 Environment: ${env.nodeEnv}`);
     console.log('=================================');
 });

@@ -1,15 +1,9 @@
 import express from 'express';
-import type { Auth } from 'better-auth';
-import { createAuthRoutes } from './modules/auth/authRoutes.js';
-import { createUserRoutes } from './modules/user/userRoutes.js';
+import userRoutes from './modules/user/userRoutes.js';
 
-// Router principal que agrupa todos los módulos
-export default (auth: Auth) => {
-    const router = express.Router();
+const router = express.Router();
 
-    // Montar rutas de cada módulo
-    router.use('/', createAuthRoutes(auth));
-    router.use('/users', createUserRoutes(auth));
+// Montar rutas de cada mÃ³dulo
+router.use('/users', userRoutes);
 
-    return router;
-};
+export default router;

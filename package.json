@@ -9,7 +9,6 @@
         "dev:qa": "NODE_ENV=qa tsx watch src/index.ts",
         "start": "NODE_ENV=production node --loader tsx src/index.ts",
         "start:qa": "NODE_ENV=qa node --loader tsx src/index.ts",
-        "test:auth": "tsx test-auth.ts",
         "lint": "eslint . --ext .ts,.js",
         "lint:fix": "eslint . --ext .ts,.js --fix",
         "format": "prettier --write \"src/**/*.{ts,js,json}\"",
@@ -22,6 +21,7 @@
     "license": "ISC",
     "packageManager": "pnpm@10.19.0",
     "dependencies": {
+        "@better-auth/expo": "^1.3.33",
         "better-auth": "^1.3.33",
         "cors": "^2.8.5",
         "dotenv": "^17.2.3",

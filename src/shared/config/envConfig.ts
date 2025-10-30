@@ -8,7 +8,7 @@ config({ path: resolve(process.cwd(), `.env.${environment}`) });
 
 export const env = {
     nodeEnv: environment,
-    port: parseInt(process.env.PORT || '3000', 10),
+    port: parseInt(process.env.PORT || '3001', 10),
     mongodbUri: process.env.MONGODB_URI || '',
     betterAuth: {
         secret: process.env.BETTER_AUTH_SECRET || '',
@@ -17,5 +17,7 @@ export const env = {
     google: {
         clientId: process.env.GOOGLE_CLIENT_ID || '',
         clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+        clientIdMobile: process.env.GOOGLE_CLIENT_ID_MOBILE || '',
+        clientSecretMobile: process.env.GOOGLE_CLIENT_SECRET_MOBILE || '',
     },
 } as const;
