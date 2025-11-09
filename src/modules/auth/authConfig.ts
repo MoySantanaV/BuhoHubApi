@@ -1,137 +1,73 @@
-// backend/modules/auth/authConfig.ts
-import { expo } from '@better-auth/expo';
-import { betterAuth } from 'better-auth';
-import { mongodbAdapter } from 'better-auth/adapters/mongodb';
-import mongoose from 'mongoose';
+import passport from 'passport';
+import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
+import User, { IUser } from '../user/userAuthModel.js';
+import UserProfile from '../user/userModel.js';
 import { env } from '../../shared/config/envConfig.js';
 
-export const createAuth = () => {
-    if (!mongoose.connection.db) {
-        throw new Error('MongoDB debe estar conectado antes de inicializar auth');
+// Serializar usuario (guardar en sesión)
+passport.serializeUser((user: any, done) => {
+    done(null, user._id);
+});
+
+// Deserializar usuario (recuperar de sesión)
+passport.deserializeUser(async (id: string, done) => {
+    try {
+        const user = await User.findById(id);
+        done(null, user);
+    } catch (error) {
+        done(error, null);
     }
+});
 
-    const isProduction = env.nodeEnv === 'production';
-
-    return betterAuth({
-        database: mongodbAdapter(mongoose.connection.db, {
-            client: mongoose.connection.getClient(),
-        }),
-
-        secret: env.betterAuth.secret,
-        baseURL: process.env.BETTER_AUTH_URL, // http://localhost:3001
-        basePath: '/api/auth',
-
-        plugins: [expo()],
-
-        trustedOrigins: [
-            'http://localhost:3000',
-            'http://localhost:3001',
-            'https://3jqk7k5n-3001.usw3.devtunnels.ms',
-            'exp://192.168.100.24:8081',
-            'buhohub://',
-            'buhohub://*',
-        ],
-
-        // ⭐ CONFIGURACIÓN PARA WEB (Next.js)
-        socialProviders: {
-            google: {
-                clientId: env.google.clientId,
-                clientSecret: env.google.clientSecret,
-                redirectURI: 'http://localhost:3001/api/auth/callback/google',
-            },
+// Estrategia de Google OAuth
+passport.use(
+    new GoogleStrategy(
+        {
+            clientID: env.google.clientId,
+            clientSecret: env.google.clientSecret,
+            callbackURL: `${env.betterAuth.url}/api/auth/google/callback`,
         },
+        async (accessToken, refreshToken, profile, done) => {
+            try {
+                // Buscar usuario existente por googleId
+                let user = await User.findOne({ googleId: profile.id });
 
-        session: {
-            expiresIn: 60 * 60 * 24 * 7,
-            updateAge: 60 * 60 * 24,
-            cookieCache: {
-                enabled: true,
-                maxAge: 60 * 60 * 24 * 7,
-            },
-        },
+                if (!user) {
+                    // Si no existe, crear nuevo usuario
+                    user = await User.create({
+                        googleId: profile.id,
+                        email: profile.emails?.[0]?.value,
+                        name: profile.displayName,
+                        image: profile.photos?.[0]?.value,
+                    });
 
-        advanced: {
-            cookiePrefix: 'better_auth',
-            crossSubDomainCookies: {
-                enabled: false,
-            },
-            cookies: {
-                session_token: {
-                    name: 'better_auth.session_token',
-                    options: {
-                        httpOnly: true,
-                        sameSite: 'none',
-                        secure: true,
-                        path: '/',
-                    },
-                },
-            },
-        },
-    });
-};
+                    // Crear perfil de usuario con plan free por defecto
+                    await UserProfile.create({
+                        userId: user._id,
+                        email: user.email,
+                        role: 'free',
+                        subscription: {
+                            status: 'inactive',
+                            planId: 'free',
+                            cancelAtPeriodEnd: false,
+                        },
+                        limits: {
+                            maxClients: 10,
+                            maxAppointments: 20,
+                            maxServices: 3,
+                        },
+                    });
 
-// ⭐ NUEVA FUNCIÓN: Auth para Mobile
-export const createAuthMobile = () => {
-    if (!mongoose.connection.db) {
-        throw new Error('MongoDB debe estar conectado antes de inicializar auth');
-    }
+                    console.log('✅ Nuevo usuario creado:', user.email);
+                }
 
-    const isProduction = env.nodeEnv === 'production';
+                return done(null, user);
+            } catch (error) {
+                console.error('❌ Error en Google Strategy:', error);
+                return done(error as Error, undefined);
+            }
+        }
+    )
+);
 
-    return betterAuth({
-        database: mongodbAdapter(mongoose.connection.db, {
-            client: mongoose.connection.getClient(),
-        }),
-
-        secret: env.betterAuth.secret,
-        baseURL: process.env.BETTER_AUTH_URL_MOBILE || 'https://3jqk7k5n-3001.usw3.devtunnels.ms',
-        basePath: '/api/auth-mobile',
-
-        plugins: [expo()],
-
-        trustedOrigins: [
-            'http://localhost:3000',
-            'http://localhost:3001',
-            'https://3jqk7k5n-3001.usw3.devtunnels.ms',
-            'exp://192.168.100.24:8081',
-            'buhohub://',
-            'buhohub://*',
-        ],
-
-        // ⭐ CONFIGURACIÓN PARA MOBILE (Expo)
-        socialProviders: {
-            google: {
-                clientId: process.env.GOOGLE_CLIENT_ID_MOBILE || env.google.clientIdMobile,
-                clientSecret: process.env.GOOGLE_CLIENT_SECRET_MOBILE || env.google.clientSecretMobile,
-                redirectURI: 'https://3jqk7k5n-3001.usw3.devtunnels.ms/api/auth-mobile/callback/google',
-            },
-        },
-
-        session: {
-            expiresIn: 60 * 60 * 24 * 7,
-            updateAge: 60 * 60 * 24,
-            cookieCache: {
-                enabled: true,
-                maxAge: 60 * 60 * 24 * 7,
-            },
-        },
-
-        advanced: {
-            cookiePrefix: 'better_auth',
-            crossSubDomainCookies: {
-                enabled: false,
-            },
-            cookies: {
-                session_token: {
-                    name: 'better_auth.session_token',
-                    options: {
-                        httpOnly: true,
-                        sameSite: 'lax',
-                        secure: isProduction,
-                        path: '/',
-                    },
-                },
-            },
-        },
-    });
-};
+export default passport;

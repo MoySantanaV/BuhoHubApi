@@ -1,61 +1,118 @@
-import { toNodeHandler } from 'better-auth/node';
-//import cookieParser from 'cookie-parser';
+import MongoStore from 'connect-mongo';
 import cors from 'cors';
 import express, { Request, Response } from 'express';
+import session from 'express-session';
 import mongoose from 'mongoose';
 import apiRouter from './apiRouter.js';
-import { createAuth, createAuthMobile } from './modules/auth/authConfig.js';
+import passport from './modules/auth/authConfig.js';
+import authRoutes from './modules/auth/authRoutes.js';
 import { env } from './shared/config/envConfig.js';
 import { connectDatabase } from './shared/config/mongodb.js';
 
 const app = express();
 
-// CORS - Permitir Web y React Native
-app.use(
-    cors({
-        origin: (origin, callback) => {
-            const allowedOrigins = [
-                'http://localhost:3000', // Next.js web
-                'http://192.168.100.24:3000', // Web desde IP local
-                'exp://192.168.100.24:8081',
-                'http://192.168.100.24:',
-            ];
+// Trust proxy - DESACTIVADO en desarrollo para evitar problemas con ngrok
+// En producción, activar con el valor correcto
+if (env.nodeEnv === 'production') {
+    app.set('trust proxy', 1);
+}
 
-            // Permitir requests sin origin (React Native/Expo) o de orígenes permitidos
-            if (!origin || allowedOrigins.includes(origin)) {
-                callback(null, true);
-            } else {
-                callback(null, true); // En desarrollo permitir todos
-            }
-        },
-        credentials: true,
-        allowedHeaders: ['Content-Type', 'Authorization'],
-        exposedHeaders: ['Set-Cookie'],
-        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    })
-);
-
-// Cookie parser
-//app.use(cookieParser());
+// Body parsers - ANTES de CORS
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Database
 await connectDatabase();
 
-// Better Auth
-const auth = createAuth();
-console.log('✅ Better Auth initialized');
+// CORS - DESPUÉS de Session
+app.use(
+    cors({
+        origin: (origin, callback) => {
+            if (!origin) {
+                return callback(null, true);
+            }
 
-// ⭐ SIN middleware de debug
-app.use('/api/auth', toNodeHandler(auth));
+            const allowedOrigins = [
+                'http://localhost:3000',
+                'https://3jqk7k5n-3000.usw3.devtunnels.ms',
+                'https://3jqk7k5n-3002.usw3.devtunnels.ms',
+                'https://prideful-nomadically-jagger.ngrok-free.dev',
+            ];
 
-const authMobile = createAuthMobile();
-app.use('/api/auth-mobile', toNodeHandler(authMobile));
+            if (allowedOrigins.includes(origin)) {
+                callback(null, true);
+            } else {
+                callback(null, env.nodeEnv === 'dev');
+            }
+        },
+        credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+        exposedHeaders: ['Set-Cookie'],
+    })
+);
 
-// Body parsers
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.set('trust proxy', 1);
+// Session - ANTES de CORS para que funcione correctamente
+app.use(
+    session({
+        secret: env.session.secret,
+        resave: true, // Cambiar a true para desarrollo
+        saveUninitialized: false,
+        store: MongoStore.create({
+            client: mongoose.connection.getClient(),
+            collectionName: 'sessions',
+            ttl: 60 * 60 * 24 * 7,
+        }),
+        cookie: {
+            secure: false, // FALSE en desarrollo
+            httpOnly: true,
+            maxAge: 1000 * 60 * 60 * 24 * 7,
+            sameSite: 'lax', // 'lax' en desarrollo
+            path: '/',
+        },
+        name: 'connect.sid',
+    })
+);
 
-// Routes
+// Inicializar Passport
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Debug middleware - Interceptar TODAS las respuestas
+app.use((req, res, next) => {
+    const originalEnd = res.end.bind(res);
+    const originalRedirect = res.redirect.bind(res);
+
+    // Interceptar end (se llama al final de TODA respuesta)
+    res.end = function (...args: any[]) {
+        console.log('🏁 END - Path:', req.path);
+        console.log('🏁 END - Status:', res.statusCode);
+        console.log('🏁 END - Set-Cookie header:', res.getHeader('Set-Cookie'));
+        console.log('🏁 END - Secure:', req.secure, 'Protocol:', req.protocol);
+        return originalEnd(...args);
+    } as any;
+
+    // Interceptar redirect
+    res.redirect = function (urlOrStatus: string | number, url?: string) {
+        const redirectUrl = typeof urlOrStatus === 'string' ? urlOrStatus : url!;
+        console.log('🔄 REDIRECT llamado hacia:', redirectUrl);
+        console.log('🔄 SessionID:', req.sessionID);
+        console.log('🔄 isAuthenticated:', req.isAuthenticated?.());
+
+        if (typeof urlOrStatus === 'number') {
+            return originalRedirect(urlOrStatus, url!);
+        }
+        return originalRedirect(urlOrStatus);
+    } as any;
+
+    next();
+});
+
+// Auth routes
+app.use('/api/auth', authRoutes);
+
+// API routes
 app.use('/api/v1', apiRouter);
 
 // Health
@@ -84,5 +141,6 @@ app.listen(env.port, () => {
     console.log('=================================');
     console.log(`✔ BuhoHub API listening on port ${env.port}`);
     console.log(`🌍 Environment: ${env.nodeEnv}`);
+    console.log(`🔐 Passport.js initialized`);
     console.log('=================================');
 });
