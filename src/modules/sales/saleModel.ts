@@ -1,4 +1,4 @@
-import { Document, Schema, model } from 'mongoose';
+import { Document, Schema, model, Types } from 'mongoose';
 
 export interface ISaleProduct {
     name: string;
@@ -8,6 +8,7 @@ export interface ISaleProduct {
 }
 
 export interface ISale extends Document {
+    _id: Types.ObjectId;
     userId: Schema.Types.ObjectId;
     clientId?: Schema.Types.ObjectId;
     date: Date;

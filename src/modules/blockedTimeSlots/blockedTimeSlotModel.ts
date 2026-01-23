@@ -1,6 +1,7 @@
-import { Document, Schema, model } from 'mongoose';
+import { Document, Schema, model, Types } from 'mongoose';
 
 export interface IBlockedTimeSlot extends Document {
+    _id: Types.ObjectId;
     userId: Schema.Types.ObjectId;
     date: Date;
     startTime: string; // HH:mm format

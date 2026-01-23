@@ -87,10 +87,10 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 // Auth routes
-app.use('/api/auth', authRoutes);
+app.use('/auth', authRoutes);
 
 // API routes
-app.use('/api/v1', apiRouter);
+app.use('/v1', apiRouter);
 
 // Health
 app.get('/health', (_req: Request, res: Response) => {
@@ -109,8 +109,8 @@ app.get('/', (_req: Request, res: Response) => {
         environment: env.nodeEnv,
         endpoints: {
             health: '/health',
-            auth: '/api/auth/*',
-            api: '/api/v1/*',
+            auth: '/auth/*',
+            api: '/v1/*',
         },
     });
 });

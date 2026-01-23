@@ -1,12 +1,14 @@
-import { Document, Schema, model } from 'mongoose';
+import { Document, Schema, model, Types } from 'mongoose';
 
 export interface IWorkSchedule {
+    _id?: Types.ObjectId;
     start: string; // HH:mm format
     end: string; // HH:mm format
     days: number[]; // 0-6, 0=Sunday
 }
 
 export interface IUserSchedule extends Document {
+    _id: Types.ObjectId;
     userId: Schema.Types.ObjectId;
     schedules: IWorkSchedule[];
     createdAt: Date;

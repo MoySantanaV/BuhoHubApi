@@ -99,7 +99,8 @@ UserProfileSchema.index({ 'subscription.status': 1 });
 // Método helper para verificar si el usuario tiene un plan activo
 UserProfileSchema.methods.hasActivePlan = function (requiredPlan: PlanId): boolean {
     const planHierarchy: Record<PlanId, number> = { free: 0, basic: 1, premium: 2, lifetime: 3 };
-    const userLevel = planHierarchy[this.subscription.planId];
+    const userPlanId = this.subscription.planId as PlanId;
+    const userLevel = planHierarchy[userPlanId];
     const requiredLevel = planHierarchy[requiredPlan];
 
     return (this.subscription.status === 'active' || this.subscription.status === 'lifetime') && userLevel >= requiredLevel;

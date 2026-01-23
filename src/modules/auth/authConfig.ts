@@ -25,7 +25,7 @@ passport.use(
         {
             clientID: env.google.clientId,
             clientSecret: env.google.clientSecret,
-            callbackURL: `${env.betterAuth.url}/api/auth/google/callback`,
+            callbackURL: `${env.betterAuth.url}/auth/google/callback`,
         },
         async (accessToken, refreshToken, profile, done) => {
             try {

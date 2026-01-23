@@ -14,9 +14,9 @@ router.use((req: Request, res: Response, next: NextFunction) => {
         'http://localhost:3000',
         'http://localhost:3001',
         'exp://localhost:19000',
-        'https://3jqk7k5n-3000.usw3.devtunnels.ms',
-        'https://3jqk7k5n-3002.usw3.devtunnels.ms',
-    ];
+        env.betterAuth.url,
+        process.env.FRONTEND_URL,
+    ].filter(Boolean) as string[];
 
     if (origin && allowedOrigins.includes(origin)) {
         res.setHeader('Access-Control-Allow-Origin', origin);
@@ -52,18 +52,18 @@ router.get('/google/callback', (req: Request, res: Response, next) => {
     passport.authenticate('google', { session: false }, (err, user, info) => {
         if (err) {
             console.error('❌ Error en autenticación:', err);
-            return res.redirect('http://localhost:3000/login?error=auth_failed');
+            return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=auth_failed`);
         }
         if (!user) {
             console.error('❌ Usuario no autenticado');
-            return res.redirect('http://localhost:3000/login?error=auth_failed');
+            return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=auth_failed`);
         }
 
         // Log in manual para controlar la sesión
         req.login(user, async (loginErr) => {
             if (loginErr) {
                 console.error('❌ Error en login:', loginErr);
-                return res.redirect('http://localhost:3000/login?error=login_failed');
+                return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=login_failed`);
             }
 
             console.log('✅ Login exitoso - Usuario:', user.email);
@@ -84,7 +84,7 @@ router.get('/google/callback', (req: Request, res: Response, next) => {
             req.session.save((saveErr) => {
                 if (saveErr) {
                     console.error('❌ Error guardando sesión:', saveErr);
-                    return res.redirect('http://localhost:3000/login?error=session_error');
+                    return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=session_error`);
                 }
 
                 console.log('💾 Sesión guardada correctamente');
@@ -119,7 +119,7 @@ router.get('/google/callback', (req: Request, res: Response, next) => {
                     // Esto fuerza el envío de la cookie
                     res.cookie('connect.sid', req.sessionID, cookieOptions);
 
-                    res.redirect('https://3jqk7k5n-3002.usw3.devtunnels.ms/home');
+                    res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/home`);
                 }
             });
         });

@@ -9,6 +9,7 @@ export interface IClientNote {
 }
 
 export interface IClient extends Document {
+    _id: Types.ObjectId;
     userId: Schema.Types.ObjectId;
     name: string;
     birthday?: Date;

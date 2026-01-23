@@ -1,6 +1,7 @@
-import { Document, Schema, model } from 'mongoose';
+import { Document, Schema, model, Types } from 'mongoose';
 
 export interface IAppointment extends Document {
+    _id: Types.ObjectId;
     userId: Schema.Types.ObjectId;
     date: Date;
     time: string; // HH:mm format
