@@ -11,20 +11,29 @@ import { connectDatabase } from './shared/config/mongodb.js';
 
 const app = express();
 
-// Trust proxy - DESACTIVADO en desarrollo para evitar problemas con ngrok
-// En producción, activar con el valor correcto
-if (env.nodeEnv === 'production') {
-    app.set('trust proxy', 1);
-}
+// Trust proxy para Vercel y producción
+app.set('trust proxy', 1);
 
-// Body parsers - ANTES de CORS
+// Body parsers
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Database
-await connectDatabase();
+// Database connection (cached para serverless)
+let isConnected = false;
+const ensureDbConnection = async () => {
+    if (!isConnected) {
+        await connectDatabase();
+        isConnected = true;
+    }
+};
 
-// CORS - DESPUÉS de Session
+// Middleware para asegurar conexión a DB en cada request (serverless)
+app.use(async (_req, _res, next) => {
+    await ensureDbConnection();
+    next();
+});
+
+// CORS
 app.use(
     cors({
         origin: (origin, callback) => {
@@ -34,10 +43,9 @@ app.use(
 
             const allowedOrigins = [
                 'http://localhost:3000',
-                'https://3jqk7k5n-3000.usw3.devtunnels.ms',
-                'https://3jqk7k5n-3002.usw3.devtunnels.ms',
-                'https://prideful-nomadically-jagger.ngrok-free.dev',
-            ];
+                env.betterAuth.url,
+                process.env.FRONTEND_URL,
+            ].filter(Boolean) as string[];
 
             if (allowedOrigins.includes(origin)) {
                 callback(null, true);
@@ -52,23 +60,22 @@ app.use(
     })
 );
 
-app.set('trust proxy', 1);
-// Session - ANTES de CORS para que funcione correctamente
+// Session
 app.use(
     session({
         secret: env.session.secret,
-        resave: true, // Cambiar a true para desarrollo
+        resave: false,
         saveUninitialized: false,
         store: MongoStore.create({
-            client: mongoose.connection.getClient(),
+            mongoUrl: env.mongodbUri,
             collectionName: 'sessions',
             ttl: 60 * 60 * 24 * 7,
         }),
         cookie: {
-            secure: false, // FALSE en desarrollo
+            secure: env.nodeEnv === 'production',
             httpOnly: true,
             maxAge: 1000 * 60 * 60 * 24 * 7,
-            sameSite: 'lax', // 'lax' en desarrollo
+            sameSite: env.nodeEnv === 'production' ? 'none' : 'lax',
             path: '/',
         },
         name: 'connect.sid',
@@ -78,36 +85,6 @@ app.use(
 // Inicializar Passport
 app.use(passport.initialize());
 app.use(passport.session());
-
-// Debug middleware - Interceptar TODAS las respuestas
-app.use((req, res, next) => {
-    const originalEnd = res.end.bind(res);
-    const originalRedirect = res.redirect.bind(res);
-
-    // Interceptar end (se llama al final de TODA respuesta)
-    res.end = function (...args: any[]) {
-        console.log('🏁 END - Path:', req.path);
-        console.log('🏁 END - Status:', res.statusCode);
-        console.log('🏁 END - Set-Cookie header:', res.getHeader('Set-Cookie'));
-        console.log('🏁 END - Secure:', req.secure, 'Protocol:', req.protocol);
-        return originalEnd(...args);
-    } as any;
-
-    // Interceptar redirect
-    res.redirect = function (urlOrStatus: string | number, url?: string) {
-        const redirectUrl = typeof urlOrStatus === 'string' ? urlOrStatus : url!;
-        console.log('🔄 REDIRECT llamado hacia:', redirectUrl);
-        console.log('🔄 SessionID:', req.sessionID);
-        console.log('🔄 isAuthenticated:', req.isAuthenticated?.());
-
-        if (typeof urlOrStatus === 'number') {
-            return originalRedirect(urlOrStatus, url!);
-        }
-        return originalRedirect(urlOrStatus);
-    } as any;
-
-    next();
-});
 
 // Auth routes
 app.use('/api/auth', authRoutes);
@@ -133,14 +110,21 @@ app.get('/', (_req: Request, res: Response) => {
         endpoints: {
             health: '/health',
             auth: '/api/auth/*',
+            api: '/api/v1/*',
         },
     });
 });
 
-app.listen(env.port, () => {
-    console.log('=================================');
-    console.log(`✔ BuhoHub API listening on port ${env.port}`);
-    console.log(`🌍 Environment: ${env.nodeEnv}`);
-    console.log(`🔐 Passport.js initialized`);
-    console.log('=================================');
-});
+// Exportar app para Vercel
+export default app;
+
+// Solo iniciar servidor si no estamos en Vercel
+if (!process.env.VERCEL) {
+    app.listen(env.port, () => {
+        console.log('=================================');
+        console.log(`✔ BuhoHub API listening on port ${env.port}`);
+        console.log(`🌍 Environment: ${env.nodeEnv}`);
+        console.log(`🔐 Passport.js initialized`);
+        console.log('=================================');
+    });
+}

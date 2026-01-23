@@ -6,3 +6,4 @@ build
 *.log
 .vscode/settings.json
 .claude
+.vercel

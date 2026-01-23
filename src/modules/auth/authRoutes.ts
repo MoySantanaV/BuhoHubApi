@@ -177,6 +177,19 @@ router.post('/exchange-token', async (req: Request, res: Response) => {
             return res.status(404).json({ error: 'Usuario no encontrado' });
         }
 
+        // Generar JWT de larga duración para peticiones API (7 días)
+        const apiToken = jwt.sign(
+            {
+                userId: user._id,
+                email: user.email,
+                type: 'api-access',
+            },
+            env.session.secret,
+            { expiresIn: '7d' }
+        );
+
+        console.log('✅ JWT generado para Expo - Expira en 7 días');
+
         return res.json({
             user: {
                 id: user._id,
@@ -184,6 +197,7 @@ router.post('/exchange-token', async (req: Request, res: Response) => {
                 name: user.name,
                 image: user.image,
             },
+            token: apiToken, // ← Token JWT para las peticiones API
             authenticated: true,
         });
     } catch (error) {

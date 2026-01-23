@@ -1,7 +1,10 @@
 import { NextFunction, Request, Response } from 'express';
+import jwt from 'jsonwebtoken';
+import { env } from '../../shared/config/envConfig.js';
+import User from '../user/userAuthModel.js';
 import UserProfile, { PlanId } from '../user/userModel.js';
 
-// ⚠️ TEMPORAL: PLAN_CONFIG mientras no se configure Stripe
+// Configuración de límites por plan
 const PLAN_CONFIG = {
     free: {
         limits: {
@@ -24,21 +27,56 @@ const PLAN_CONFIG = {
             maxServices: -1,
         },
     },
+    lifetime: {
+        limits: {
+            maxClients: -1, // Unlimited
+            maxAppointments: -1, // Unlimited
+            maxServices: -1, // Unlimited
+        },
+    },
 };
 
 // Middleware de autenticación: verificar que el usuario esté logueado
 const authenticate = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-        // Passport agrega isAuthenticated() y user a req
-        if (!req.isAuthenticated() || !req.user) {
+        let user: any = null;
+
+        // 1. Intentar autenticación con JWT (para Expo/React Native)
+        const authHeader = req.headers.authorization;
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            const token = authHeader.substring(7); // Remover "Bearer "
+
+            try {
+                const decoded = jwt.verify(token, env.session.secret) as any;
+
+                if (decoded.type === 'api-access' && decoded.userId) {
+                    // Buscar usuario por ID del token
+                    user = await User.findById(decoded.userId);
+
+                    if (user) {
+                        console.log('✅ Autenticado vía JWT:', user.email);
+                    }
+                }
+            } catch (jwtError) {
+                console.log('⚠️ Token JWT inválido o expirado');
+                // No retornar error aquí, intentar con Passport
+            }
+        }
+
+        // 2. Si no hay JWT o es inválido, intentar con Passport.js (para Next.js)
+        if (!user && req.isAuthenticated() && req.user) {
+            user = req.user;
+            console.log('✅ Autenticado vía Passport (cookies):', user.email);
+        }
+
+        // 3. Si ninguno funcionó, retornar 401
+        if (!user) {
             res.status(401).json({
                 error: 'No autenticado',
                 message: 'Debes iniciar sesión',
             });
             return;
         }
-
-        const user = req.user as any;
 
         // Buscar o crear perfil de usuario
         let userProfile = await UserProfile.findOne({ userId: user._id });
@@ -62,15 +100,17 @@ const authenticate = async (req: Request, res: Response, next: NextFunction): Pr
 
             console.log('✅ UserProfile created successfully');
         } else {
-            // Verificar si la suscripción está vencida
+            // Verificar si la suscripción está vencida (skip lifetime)
             const isExpired =
-                userProfile.subscription.currentPeriodEnd && new Date() > userProfile.subscription.currentPeriodEnd;
+                userProfile.subscription.planId !== 'lifetime' &&
+                userProfile.subscription.currentPeriodEnd &&
+                new Date() > userProfile.subscription.currentPeriodEnd;
 
             if (isExpired) {
                 console.log('⚠️ Subscription expired for user:', user.email);
 
-                // Volver a plan free si la suscripción venció
-                if (userProfile.subscription.planId !== 'free') {
+                // Volver a plan free si la suscripción venció (pero NO si es lifetime)
+                if (userProfile.subscription.planId !== 'free' && userProfile.subscription.planId !== 'lifetime') {
                     userProfile.subscription.status = 'inactive';
                     userProfile.subscription.planId = 'free';
                     userProfile.limits = PLAN_CONFIG.free.limits;
@@ -81,6 +121,7 @@ const authenticate = async (req: Request, res: Response, next: NextFunction): Pr
         }
 
         // Adjuntar datos a la request
+        (req as any).user = user; // Asegurar que req.user esté disponible
         (req as any).userProfile = userProfile;
 
         next();
@@ -133,8 +174,8 @@ const requirePlan = (requiredPlan: PlanId) => {
             return;
         }
 
-        // Jerarquía de planes
-        const planHierarchy: Record<PlanId, number> = { free: 0, basic: 1, premium: 2 };
+        // Jerarquía de planes (lifetime es el nivel más alto)
+        const planHierarchy: Record<PlanId, number> = { free: 0, basic: 1, premium: 2, lifetime: 3 };
         const userPlanLevel = planHierarchy[userProfile.subscription.planId as PlanId];
         const requiredLevel = planHierarchy[requiredPlan];
 

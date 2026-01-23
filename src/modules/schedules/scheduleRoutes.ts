@@ -1,10 +1,11 @@
 import { Router } from 'express';
+import { authenticate } from '../auth/authMiddleware.js';
+import { getWorkSchedules, saveWorkSchedules } from './scheduleController.js';
 
 const router = Router();
 
-/* router.get('/:_id');
-router.post('/');
-router.patch('/:_id');
-router.delete(':_id'); */
+// All routes require authentication
+router.get('/', authenticate, getWorkSchedules);
+router.post('/', authenticate, saveWorkSchedules);
 
 export default router;

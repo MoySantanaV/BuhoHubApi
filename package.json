@@ -9,6 +9,7 @@
         "dev:qa": "NODE_ENV=qa tsx watch src/index.ts",
         "start": "NODE_ENV=production node --loader tsx src/index.ts",
         "start:qa": "NODE_ENV=qa node --loader tsx src/index.ts",
+        "build": "tsc",
         "lint": "eslint . --ext .ts,.js",
         "lint:fix": "eslint . --ext .ts,.js --fix",
         "format": "prettier --write \"src/**/*.{ts,js,json}\"",
@@ -30,8 +31,7 @@
         "jsonwebtoken": "^9.0.2",
         "mongoose": "^8.19.2",
         "passport": "^0.7.0",
-        "passport-google-oauth20": "^2.0.0",
-        "stripe": "^19.2.0"
+        "passport-google-oauth20": "^2.0.0"
     },
     "devDependencies": {
         "@eslint/js": "^9.38.0",

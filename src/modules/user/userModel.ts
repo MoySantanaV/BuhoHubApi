@@ -1,8 +1,8 @@
 import { Document, Schema, model } from 'mongoose';
 
-export type UserRole = 'free' | 'basic' | 'premium' | 'admin';
-export type SubscriptionStatus = 'active' | 'inactive' | 'canceled' | 'past_due' | 'trialing';
-export type PlanId = 'free' | 'basic' | 'premium';
+export type UserRole = 'free' | 'basic' | 'premium' | 'lifetime' | 'admin';
+export type SubscriptionStatus = 'active' | 'inactive' | 'canceled' | 'past_due' | 'trialing' | 'lifetime';
+export type PlanId = 'free' | 'basic' | 'premium' | 'lifetime';
 
 export interface IUserProfile extends Document {
     userId: Schema.Types.ObjectId; // Referencia al User de Passport
@@ -11,14 +11,10 @@ export interface IUserProfile extends Document {
     // 🔐 ROLES
     role: UserRole;
 
-    // 💳 STRIPE
-    stripeCustomerId?: string; // ID del customer en Stripe
-
     // 📅 SUSCRIPCIÓN
     subscription: {
         status: SubscriptionStatus;
         planId: PlanId;
-        stripeSubscriptionId?: string;
         currentPeriodStart?: Date;
         currentPeriodEnd?: Date;
         cancelAtPeriodEnd: boolean;
@@ -53,25 +49,20 @@ const UserProfileSchema = new Schema<IUserProfile>(
         },
         role: {
             type: String,
-            enum: ['free', 'basic', 'premium', 'admin'],
+            enum: ['free', 'basic', 'premium', 'lifetime', 'admin'],
             default: 'free',
-        },
-        stripeCustomerId: {
-            type: String,
-            sparse: true,
         },
         subscription: {
             status: {
                 type: String,
-                enum: ['active', 'inactive', 'canceled', 'past_due', 'trialing'],
+                enum: ['active', 'inactive', 'canceled', 'past_due', 'trialing', 'lifetime'],
                 default: 'inactive',
             },
             planId: {
                 type: String,
-                enum: ['free', 'basic', 'premium'],
+                enum: ['free', 'basic', 'premium', 'lifetime'],
                 default: 'free',
             },
-            stripeSubscriptionId: String,
             currentPeriodStart: Date,
             currentPeriodEnd: Date,
             cancelAtPeriodEnd: {
@@ -107,15 +98,17 @@ UserProfileSchema.index({ 'subscription.status': 1 });
 
 // Método helper para verificar si el usuario tiene un plan activo
 UserProfileSchema.methods.hasActivePlan = function (requiredPlan: PlanId): boolean {
-    const planHierarchy: Record<PlanId, number> = { free: 0, basic: 1, premium: 2 };
+    const planHierarchy: Record<PlanId, number> = { free: 0, basic: 1, premium: 2, lifetime: 3 };
     const userLevel = planHierarchy[this.subscription.planId];
     const requiredLevel = planHierarchy[requiredPlan];
 
-    return this.subscription.status === 'active' && userLevel >= requiredLevel;
+    return (this.subscription.status === 'active' || this.subscription.status === 'lifetime') && userLevel >= requiredLevel;
 };
 
 // Método helper para verificar si la suscripción está vencida
 UserProfileSchema.methods.isSubscriptionExpired = function (): boolean {
+    // Plan lifetime nunca expira
+    if (this.subscription.planId === 'lifetime') return false;
     if (!this.subscription.currentPeriodEnd) return false;
     return new Date() > this.subscription.currentPeriodEnd;
 };
