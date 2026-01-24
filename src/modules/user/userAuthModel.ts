@@ -18,7 +18,6 @@ export interface IBusinessProfile {
 }
 
 export interface IUser extends Document {
-    _id: string;
     email: string;
     name?: string;
     image?: string;
