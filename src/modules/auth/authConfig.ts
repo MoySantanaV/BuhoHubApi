@@ -20,7 +20,7 @@ passport.deserializeUser(async (id: string, done) => {
 });
 
 // Estrategia de Google OAuth
-passport.use(
+(passport.use as any)(
     new GoogleStrategy(
         {
             clientID: env.google.clientId,
