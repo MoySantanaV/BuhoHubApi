@@ -1,11 +1,11 @@
-import { Request, Response } from 'express';
+import { Req, Res } from '../../shared/types/express.js';
 import { compareTimeStrings, isValidTimeFormat } from '../../shared/utils/dateTimeHelpers.js';
 import UserSchedule from './scheduleModel.js';
 
 /**
  * Get work schedules for the authenticated user
  */
-export const getWorkSchedules = async (req: Request, res: Response): Promise<void> => {
+export const getWorkSchedules = async (req: Req, res: Res): Promise<void> => {
     try {
         const userId = (req.user as any)._id;
 
@@ -37,7 +37,7 @@ export const getWorkSchedules = async (req: Request, res: Response): Promise<voi
 /**
  * Save/update all work schedules for the authenticated user
  */
-export const saveWorkSchedules = async (req: Request, res: Response): Promise<void> => {
+export const saveWorkSchedules = async (req: Req, res: Res): Promise<void> => {
     try {
         const userId = (req.user as any)._id;
         const schedules = req.body;

@@ -1,7 +1,8 @@
 import MongoStore from 'connect-mongo';
 import cors from 'cors';
-import express, { Request, Response } from 'express';
+import express from 'express';
 import session from 'express-session';
+import { Req, Res } from './shared/types/express.js';
 import mongoose from 'mongoose';
 import apiRouter from './apiRouter.js';
 import passport from './modules/auth/authConfig.js';
@@ -93,7 +94,7 @@ app.use('/auth', authRoutes);
 app.use('/v1', apiRouter);
 
 // Health
-app.get('/health', (_req: Request, res: Response) => {
+app.get('/health', (_req: Req, res: Res) => {
     res.json({
         status: 'ok',
         environment: env.nodeEnv,
@@ -103,7 +104,7 @@ app.get('/health', (_req: Request, res: Response) => {
 });
 
 // Root
-app.get('/', (_req: Request, res: Response) => {
+app.get('/', (_req: Req, res: Res) => {
     res.json({
         message: 'BuhoHub API',
         environment: env.nodeEnv,

@@ -1,11 +1,11 @@
-import { Request, Response } from 'express';
+import { Req, Res } from '../../shared/types/express.js';
 import Product from './productModel.js';
 
 /**
  * Get all products for the authenticated user
  * Query params: search, sortBy, order
  */
-export const getAllProducts = async (req: Request, res: Response): Promise<void> => {
+export const getAllProducts = async (req: Req, res: Res): Promise<void> => {
     try {
         const userId = (req.user as any)._id;
         const { search, sortBy = 'name', order = 'asc' } = req.query;
@@ -46,7 +46,7 @@ export const getAllProducts = async (req: Request, res: Response): Promise<void>
 /**
  * Create a new product
  */
-export const createProduct = async (req: Request, res: Response): Promise<void> => {
+export const createProduct = async (req: Req, res: Res): Promise<void> => {
     try {
         const userId = (req.user as any)._id;
         const { name, price } = req.body;
@@ -104,7 +104,7 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
 /**
  * Update a product
  */
-export const updateProduct = async (req: Request, res: Response): Promise<void> => {
+export const updateProduct = async (req: Req, res: Res): Promise<void> => {
     try {
         const userId = (req.user as any)._id;
         const { id } = req.params;
@@ -165,7 +165,7 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
 /**
  * Delete a product
  */
-export const deleteProduct = async (req: Request, res: Response): Promise<void> => {
+export const deleteProduct = async (req: Req, res: Res): Promise<void> => {
     try {
         const userId = (req.user as any)._id;
         const { id } = req.params;

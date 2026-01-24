@@ -1,6 +1,6 @@
-import { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { env } from '../../shared/config/envConfig.js';
+import { Next, Req, Res } from '../../shared/types/express.js';
 import User from '../user/userAuthModel.js';
 import UserProfile, { PlanId } from '../user/userModel.js';
 
@@ -37,7 +37,7 @@ const PLAN_CONFIG = {
 };
 
 // Middleware de autenticación: verificar que el usuario esté logueado
-const authenticate = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+const authenticate = async (req: Req, res: Res, next: Next): Promise<void> => {
     try {
         let user: any = null;
 
@@ -134,7 +134,7 @@ const authenticate = async (req: Request, res: Response, next: NextFunction): Pr
 };
 
 // Middleware opcional: verificar si el usuario está autenticado (no obliga)
-const optionalAuth = async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
+const optionalAuth = async (req: Req, _res: Res, next: Next): Promise<void> => {
     try {
         if (req.isAuthenticated() && req.user) {
             const user = req.user as any;
@@ -153,7 +153,7 @@ const optionalAuth = async (req: Request, _res: Response, next: NextFunction): P
 
 // Middleware de autorización por plan
 const requirePlan = (requiredPlan: PlanId) => {
-    return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    return async (req: Req, res: Res, next: Next): Promise<void> => {
         const userProfile = (req as any).userProfile;
 
         if (!userProfile) {
@@ -195,7 +195,7 @@ const requirePlan = (requiredPlan: PlanId) => {
 
 // Middleware de autorización por rol
 const requireRole = (requiredRole: 'admin') => {
-    return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    return async (req: Req, res: Res, next: Next): Promise<void> => {
         const userProfile = (req as any).userProfile;
 
         if (!userProfile) {

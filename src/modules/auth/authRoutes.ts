@@ -1,6 +1,7 @@
-import express, { NextFunction, Request, Response } from 'express';
+import express from 'express';
 import jwt from 'jsonwebtoken';
 import { env } from '../../shared/config/envConfig.js';
+import { Next, Req, Res } from '../../shared/types/express.js';
 import User from '../user/userAuthModel.js';
 import passport from './authConfig.js';
 
@@ -8,7 +9,7 @@ const router = express.Router();
 const usedTokens = new Set<string>();
 
 // Middleware CORS MEJORADO
-router.use((req: Request, res: Response, next: NextFunction) => {
+router.use((req: Req, res: Res, next: Next) => {
     const origin = req.headers.origin;
     const allowedOrigins = [
         'http://localhost:3000',
@@ -33,7 +34,7 @@ router.use((req: Request, res: Response, next: NextFunction) => {
 });
 
 // Iniciar OAuth con Google
-router.get('/google', (req: Request, res: Response, next) => {
+router.get('/google', (req: Req, res: Res, next) => {
     const from = req.query.from as string;
     const state = JSON.stringify({
         from: from || 'web',
@@ -47,7 +48,7 @@ router.get('/google', (req: Request, res: Response, next) => {
 });
 
 // Callback de Google OAuth - VERSIÓN CORREGIDA
-router.get('/google/callback', (req: Request, res: Response, next) => {
+router.get('/google/callback', (req: Req, res: Res, next) => {
     console.log('🔄 Iniciando callback de Google...');
     passport.authenticate('google', { session: false }, (err, user, info) => {
         if (err) {
@@ -127,7 +128,7 @@ router.get('/google/callback', (req: Request, res: Response, next) => {
 });
 
 // Obtener sesión actual - MEJORADO
-router.get('/session', (req: Request, res: Response) => {
+router.get('/session', (req: Req, res: Res) => {
     console.log('🔍 /session - Headers recibidos:', {
         cookie: req.headers.cookie,
         origin: req.headers.origin,
@@ -153,7 +154,7 @@ router.get('/session', (req: Request, res: Response) => {
 });
 
 // Intercambiar token de un solo uso por datos de usuario (para Expo)
-router.post('/exchange-token', async (req: Request, res: Response) => {
+router.post('/exchange-token', async (req: Req, res: Res) => {
     const { token } = req.body;
     if (!token) {
         return res.status(400).json({ error: 'Token requerido' });
@@ -206,7 +207,7 @@ router.post('/exchange-token', async (req: Request, res: Response) => {
 });
 
 // Cerrar sesión - MEJORADO
-router.post('/logout', (req: Request, res: Response) => {
+router.post('/logout', (req: Req, res: Res) => {
     console.log('🚪 Cerrando sesión para usuario:', req.user);
 
     req.logout((err) => {

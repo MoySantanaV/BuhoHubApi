@@ -1,11 +1,11 @@
-import { Request, Response } from 'express';
+import { Req, Res } from '../../shared/types/express.js';
 import { compareTimeStrings, formatDate, isValidTimeFormat, parseDate } from '../../shared/utils/dateTimeHelpers.js';
 import BlockedTimeSlot from './blockedTimeSlotModel.js';
 
 /**
  * Get all blocked time slots for the authenticated user
  */
-export const getAllBlockedTimeSlots = async (req: Request, res: Response): Promise<void> => {
+export const getAllBlockedTimeSlots = async (req: Req, res: Res): Promise<void> => {
     try {
         const userId = (req.user as any)._id;
 
@@ -33,7 +33,7 @@ export const getAllBlockedTimeSlots = async (req: Request, res: Response): Promi
 /**
  * Create a new blocked time slot
  */
-export const createBlockedTimeSlot = async (req: Request, res: Response): Promise<void> => {
+export const createBlockedTimeSlot = async (req: Req, res: Res): Promise<void> => {
     try {
         const userId = (req.user as any)._id;
         const { date: dateStr, startTime, endTime, reason } = req.body;
@@ -137,7 +137,7 @@ export const createBlockedTimeSlot = async (req: Request, res: Response): Promis
 /**
  * Delete a blocked time slot
  */
-export const deleteBlockedTimeSlot = async (req: Request, res: Response): Promise<void> => {
+export const deleteBlockedTimeSlot = async (req: Req, res: Res): Promise<void> => {
     try {
         const userId = (req.user as any)._id;
         const { id } = req.params;

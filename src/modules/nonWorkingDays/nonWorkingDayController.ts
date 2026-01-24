@@ -1,11 +1,11 @@
-import { Request, Response } from 'express';
+import { Req, Res } from '../../shared/types/express.js';
 import { formatDate, getEndOfDay, getStartOfDay, parseDate } from '../../shared/utils/dateTimeHelpers.js';
 import NonWorkingDay from './nonWorkingDayModel.js';
 
 /**
  * Get all non-working days for the authenticated user
  */
-export const getAllNonWorkingDays = async (req: Request, res: Response): Promise<void> => {
+export const getAllNonWorkingDays = async (req: Req, res: Res): Promise<void> => {
     try {
         const userId = (req.user as any)._id;
 
@@ -29,7 +29,7 @@ export const getAllNonWorkingDays = async (req: Request, res: Response): Promise
 /**
  * Toggle a non-working day (create if not exists, delete if exists)
  */
-export const toggleNonWorkingDay = async (req: Request, res: Response): Promise<void> => {
+export const toggleNonWorkingDay = async (req: Req, res: Res): Promise<void> => {
     try {
         const userId = (req.user as any)._id;
         const { date: dateStr } = req.body;

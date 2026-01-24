@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Req, Res } from '../../shared/types/express.js';
 import {
     getAppointmentInterval,
     getWorkScheduleForDay,
@@ -21,7 +21,7 @@ import Appointment from './appointmentModel.js';
  * Get all appointments for the authenticated user
  * Query params: date, dateFrom, dateTo, status
  */
-export const getAllAppointments = async (req: Request, res: Response): Promise<void> => {
+export const getAllAppointments = async (req: Req, res: Res): Promise<void> => {
     try {
         const userId = (req.user as any)._id;
         const { date, dateFrom, dateTo } = req.query;
@@ -72,7 +72,7 @@ export const getAllAppointments = async (req: Request, res: Response): Promise<v
 /**
  * Create a new appointment with validation
  */
-export const createAppointment = async (req: Request, res: Response): Promise<void> => {
+export const createAppointment = async (req: Req, res: Res): Promise<void> => {
     try {
         const userId = (req.user as any)._id;
         const { date: dateStr, time, clientName, service } = req.body;
@@ -197,7 +197,7 @@ export const createAppointment = async (req: Request, res: Response): Promise<vo
 /**
  * Update an appointment with validation
  */
-export const updateAppointment = async (req: Request, res: Response): Promise<void> => {
+export const updateAppointment = async (req: Req, res: Res): Promise<void> => {
     try {
         const userId = (req.user as any)._id;
         const { id } = req.params;
@@ -336,7 +336,7 @@ export const updateAppointment = async (req: Request, res: Response): Promise<vo
 /**
  * Delete an appointment
  */
-export const deleteAppointment = async (req: Request, res: Response): Promise<void> => {
+export const deleteAppointment = async (req: Req, res: Res): Promise<void> => {
     try {
         const userId = (req.user as any)._id;
         const { id } = req.params;
@@ -365,7 +365,7 @@ export const deleteAppointment = async (req: Request, res: Response): Promise<vo
  * Get available time slots for a specific date
  * Query params: date (required), duration (optional)
  */
-export const getAvailableSlots = async (req: Request, res: Response): Promise<void> => {
+export const getAvailableSlots = async (req: Req, res: Res): Promise<void> => {
     try {
         const userId = (req.user as any)._id;
         const { date: dateStr, duration } = req.query;

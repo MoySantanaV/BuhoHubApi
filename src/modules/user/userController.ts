@@ -1,10 +1,10 @@
-import { Request, Response } from 'express';
+import { Req, Res } from '../../shared/types/express.js';
 import { IUserProfile } from './userModel.js';
 import { IUser } from './userAuthModel.js';
 import User from './userAuthModel.js';
 
 // Obtener perfil del usuario autenticado
-export const getProfile = (req: Request, res: Response): void => {
+export const getProfile = (req: Req, res: Res): void => {
     const user = req.user as IUser;
     const userProfile = (req as any).userProfile as IUserProfile;
 
@@ -26,7 +26,7 @@ export const getProfile = (req: Request, res: Response): void => {
 };
 
 // Obtener información completa del usuario (me)
-export const getMe = (req: Request, res: Response): void => {
+export const getMe = (req: Req, res: Res): void => {
     const user = req.user as IUser;
     const userProfile = (req as any).userProfile as IUserProfile;
 
@@ -46,7 +46,7 @@ export const getMe = (req: Request, res: Response): void => {
 };
 
 // Endpoint público con información opcional del usuario
-export const getPublicInfo = (req: Request, res: Response): void => {
+export const getPublicInfo = (req: Req, res: Res): void => {
     const isAuth = req.isAuthenticated();
     const user = req.user as IUser | undefined;
 
@@ -58,7 +58,7 @@ export const getPublicInfo = (req: Request, res: Response): void => {
 };
 
 // Obtener perfil de negocio del usuario
-export const getBusinessProfile = async (req: Request, res: Response): Promise<void> => {
+export const getBusinessProfile = async (req: Req, res: Res): Promise<void> => {
     try {
         const user = req.user as IUser;
         const userId = user._id;
@@ -73,7 +73,7 @@ export const getBusinessProfile = async (req: Request, res: Response): Promise<v
 };
 
 // Actualizar perfil de negocio del usuario
-export const updateBusinessProfile = async (req: Request, res: Response): Promise<void> => {
+export const updateBusinessProfile = async (req: Req, res: Res): Promise<void> => {
     try {
         const user = req.user as IUser;
         const userId = user._id;

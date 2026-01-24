@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Req, Res } from '../../shared/types/express.js';
 import { formatDate, formatTime, parseDate } from '../../shared/utils/dateTimeHelpers.js';
 import { calculateSale, getPeriodDateRange } from '../../shared/utils/salesCalculations.js';
 import Sale from './saleModel.js';
@@ -8,7 +8,7 @@ import Client from '../clients/clientModel.js';
  * Get all sales for the authenticated user
  * Query params: dateFrom, dateTo, period
  */
-export const getAllSales = async (req: Request, res: Response): Promise<void> => {
+export const getAllSales = async (req: Req, res: Res): Promise<void> => {
     try {
         const userId = (req.user as any)._id;
         const { dateFrom, dateTo, period } = req.query;
@@ -68,7 +68,7 @@ export const getAllSales = async (req: Request, res: Response): Promise<void> =>
 /**
  * Create a new sale with server-side calculations
  */
-export const createSale = async (req: Request, res: Response): Promise<void> => {
+export const createSale = async (req: Req, res: Res): Promise<void> => {
     try {
         const userId = (req.user as any)._id;
         const { products, hasTax = false, clientId } = req.body;
@@ -188,7 +188,7 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
  * Get sales statistics for a period
  * Query params: period (today, week, month)
  */
-export const getSalesStats = async (req: Request, res: Response): Promise<void> => {
+export const getSalesStats = async (req: Req, res: Res): Promise<void> => {
     try {
         const userId = (req.user as any)._id;
         const { period = 'today' } = req.query;

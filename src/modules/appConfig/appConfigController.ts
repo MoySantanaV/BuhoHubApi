@@ -1,11 +1,11 @@
-import { Request, Response } from 'express';
+import { Req, Res } from '../../shared/types/express.js';
 import AppConfig from './appConfigModel.js';
 
 /**
  * Get minimum required app version
  * Public endpoint - no authentication required
  */
-export const getMinVersion = async (req: Request, res: Response): Promise<void> => {
+export const getMinVersion = async (req: Req, res: Res): Promise<void> => {
     try {
         console.log('📱 Fetching minimum app version');
 
@@ -37,7 +37,7 @@ export const getMinVersion = async (req: Request, res: Response): Promise<void> 
  * Update minimum required app version
  * Protected endpoint - requires admin role
  */
-export const updateMinVersion = async (req: Request, res: Response): Promise<void> => {
+export const updateMinVersion = async (req: Req, res: Res): Promise<void> => {
     try {
         const { minVersion, forceImmediate } = req.body;
 

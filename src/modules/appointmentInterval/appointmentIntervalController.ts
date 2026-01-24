@@ -1,11 +1,11 @@
-import { Request, Response } from 'express';
+import { Req, Res } from '../../shared/types/express.js';
 import AppointmentInterval from './appointmentIntervalModel.js';
 
 /**
  * Get appointment interval for the authenticated user
  * Returns the interval number directly (not wrapped in object)
  */
-export const getAppointmentInterval = async (req: Request, res: Response): Promise<void> => {
+export const getAppointmentInterval = async (req: Req, res: Res): Promise<void> => {
     try {
         const userId = (req.user as any)._id;
 
@@ -27,7 +27,7 @@ export const getAppointmentInterval = async (req: Request, res: Response): Promi
 /**
  * Update appointment interval for the authenticated user
  */
-export const updateAppointmentInterval = async (req: Request, res: Response): Promise<void> => {
+export const updateAppointmentInterval = async (req: Req, res: Res): Promise<void> => {
     try {
         const userId = (req.user as any)._id;
         const { interval } = req.body;

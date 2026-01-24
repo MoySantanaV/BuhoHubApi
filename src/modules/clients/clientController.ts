@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Req, Res } from '../../shared/types/express.js';
 import { formatDate, formatDateTime, parseDate, parseDateOrDateTime } from '../../shared/utils/dateTimeHelpers.js';
 import Client from './clientModel.js';
 
@@ -6,7 +6,7 @@ import Client from './clientModel.js';
  * Get all clients for the authenticated user
  * Query params: search, limit, offset
  */
-export const getAllClients = async (req: Request, res: Response): Promise<void> => {
+export const getAllClients = async (req: Req, res: Res): Promise<void> => {
     try {
         const userId = (req.user as any)._id;
         const { search, limit, offset } = req.query;
@@ -65,7 +65,7 @@ export const getAllClients = async (req: Request, res: Response): Promise<void> 
 /**
  * Create a new client
  */
-export const createClient = async (req: Request, res: Response): Promise<void> => {
+export const createClient = async (req: Req, res: Res): Promise<void> => {
     try {
         const userId = (req.user as any)._id;
         const { name, birthday, email, phone, notes } = req.body;
@@ -150,7 +150,7 @@ export const createClient = async (req: Request, res: Response): Promise<void> =
 /**
  * Update a client
  */
-export const updateClient = async (req: Request, res: Response): Promise<void> => {
+export const updateClient = async (req: Req, res: Res): Promise<void> => {
     try {
         const userId = (req.user as any)._id;
         const { id } = req.params;
@@ -256,7 +256,7 @@ export const updateClient = async (req: Request, res: Response): Promise<void> =
 /**
  * Delete a client
  */
-export const deleteClient = async (req: Request, res: Response): Promise<void> => {
+export const deleteClient = async (req: Req, res: Res): Promise<void> => {
     try {
         const userId = (req.user as any)._id;
         const { id } = req.params;
