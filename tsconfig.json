@@ -13,9 +13,9 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
-    "types": ["node"],
     "noUnusedLocals": false,
-    "noUnusedParameters": false
+    "noUnusedParameters": false,
+    "types": ["node", "express", "express-session", "cors", "passport", "passport-google-oauth20", "jsonwebtoken"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules"]

@@ -4,7 +4,10 @@
     "builds": [
         {
             "src": "api/index.ts",
-            "use": "@vercel/node"
+            "use": "@vercel/node",
+            "config": {
+                "maxLambdaSize": "50mb"
+            }
         }
     ],
     "routes": [
@@ -12,5 +15,9 @@
             "src": "/(.*)",
             "dest": "/api"
         }
-    ]
+    ],
+    "env": {
+        "TSC_COMPILE_ON_ERROR": "true",
+        "TS_NODE_TRANSPILE_ONLY": "true"
+    }
 }
