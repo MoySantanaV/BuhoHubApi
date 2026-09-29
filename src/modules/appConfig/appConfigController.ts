@@ -7,22 +7,16 @@ import AppConfig from './appConfigModel.js';
  */
 export const getMinVersion = async (req: Req, res: Res): Promise<void> => {
     try {
-        console.log('📱 Fetching minimum app version');
-
         // Buscar configuración en BD
         let config = await AppConfig.findOne({ key: 'minVersion' });
 
         if (!config) {
-            console.log('⚠️ No minVersion config found, creating default...');
-
             // Primera vez: crear configuración inicial
             config = await AppConfig.create({
                 key: 'minVersion',
                 value: { minVersion: '1.0.0', forceImmediate: false },
             });
         }
-
-        console.log('✅ Min version:', config.value);
         res.json(config.value);
     } catch (error) {
         console.error('❌ Error getting min version:', error);
@@ -49,8 +43,6 @@ export const updateMinVersion = async (req: Req, res: Res): Promise<void> => {
             return;
         }
 
-        console.log('🔄 Updating minVersion to:', minVersion, 'forceImmediate:', forceImmediate);
-
         // Actualizar o crear configuración
         const config = await AppConfig.findOneAndUpdate(
             { key: 'minVersion' },
@@ -63,8 +55,6 @@ export const updateMinVersion = async (req: Req, res: Res): Promise<void> => {
             },
             { upsert: true, new: true }
         );
-
-        console.log('✅ MinVersion updated successfully');
 
         res.json({
             success: true,

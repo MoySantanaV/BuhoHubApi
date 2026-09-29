@@ -22,4 +22,9 @@ export const env = {
         clientId: process.env.GOOGLE_CLIENT_ID || '',
         clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
     },
+    resend: {
+        apiKey: process.env.RESEND_API_KEY || '',
+        from: process.env.EMAIL_FROM || 'BuhoHub <onboarding@resend.dev>',
+    },
+    appScheme: process.env.APP_SCHEME || 'buhohub',
 } as const;

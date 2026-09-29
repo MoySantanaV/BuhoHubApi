@@ -1,7 +1,15 @@
 import { Req, Res } from '../../shared/types/express.js';
-import { IUserProfile } from './userModel.js';
+import UserProfile, { IUserProfile } from './userModel.js';
 import { IUser } from './userAuthModel.js';
 import User from './userAuthModel.js';
+import Client from '../clients/clientModel.js';
+import Product from '../products/productModel.js';
+import Sale from '../sales/saleModel.js';
+import Appointment from '../appointments/appointmentModel.js';
+import AppointmentInterval from '../appointmentInterval/appointmentIntervalModel.js';
+import NonWorkingDay from '../nonWorkingDays/nonWorkingDayModel.js';
+import BlockedTimeSlot from '../blockedTimeSlots/blockedTimeSlotModel.js';
+import UserSchedule from '../schedules/scheduleModel.js';
 
 // Obtener perfil del usuario autenticado
 export const getProfile = (req: Req, res: Res): void => {
@@ -69,6 +77,40 @@ export const getBusinessProfile = async (req: Req, res: Res): Promise<void> => {
     } catch (error) {
         console.error('Error al obtener business profile:', error);
         res.status(500).json({ error: 'Error al obtener perfil de negocio' });
+    }
+};
+
+// Eliminar la cuenta del usuario y TODOS sus datos (requerido por App Store y Google Play)
+export const deleteAccount = async (req: Req, res: Res): Promise<void> => {
+    try {
+        const user = req.user as IUser;
+        const userId = user._id;
+
+        // Borra en paralelo todos los datos de negocio del usuario
+        await Promise.all([
+            Client.deleteMany({ userId }),
+            Product.deleteMany({ userId }),
+            Sale.deleteMany({ userId }),
+            Appointment.deleteMany({ userId }),
+            AppointmentInterval.deleteMany({ userId }),
+            NonWorkingDay.deleteMany({ userId }),
+            BlockedTimeSlot.deleteMany({ userId }),
+            UserSchedule.deleteMany({ userId }),
+            UserProfile.deleteOne({ userId }),
+        ]);
+
+        // Finalmente elimina la cuenta de autenticación
+        await User.findByIdAndDelete(userId);
+
+        // Cierra la sesión de Passport si existe (login web por cookies)
+        if (typeof req.logout === 'function') {
+            req.logout(() => {});
+        }
+
+        res.json({ success: true, message: 'Cuenta eliminada correctamente' });
+    } catch (error) {
+        console.error('Error al eliminar la cuenta:', error);
+        res.status(500).json({ message: 'Error al eliminar la cuenta' });
     }
 };
 

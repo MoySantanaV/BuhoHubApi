@@ -52,13 +52,8 @@ const authenticate = async (req: Req, res: Res, next: Next): Promise<void> => {
                 if (decoded.type === 'api-access' && decoded.userId) {
                     // Buscar usuario por ID del token
                     user = await User.findById(decoded.userId);
-
-                    if (user) {
-                        console.log('✅ Autenticado vía JWT:', user.email);
-                    }
                 }
             } catch (jwtError) {
-                console.log('⚠️ Token JWT inválido o expirado');
                 // No retornar error aquí, intentar con Passport
             }
         }
@@ -66,7 +61,6 @@ const authenticate = async (req: Req, res: Res, next: Next): Promise<void> => {
         // 2. Si no hay JWT o es inválido, intentar con Passport.js (para Next.js)
         if (!user && req.isAuthenticated() && req.user) {
             user = req.user;
-            console.log('✅ Autenticado vía Passport (cookies):', user.email);
         }
 
         // 3. Si ninguno funcionó, retornar 401
@@ -82,8 +76,6 @@ const authenticate = async (req: Req, res: Res, next: Next): Promise<void> => {
         let userProfile = await UserProfile.findOne({ userId: user._id });
 
         if (!userProfile) {
-            console.log('🆕 Creating new UserProfile for user:', user.email);
-
             // Crear perfil inicial con plan free
             userProfile = await UserProfile.create({
                 userId: user._id,
@@ -97,8 +89,6 @@ const authenticate = async (req: Req, res: Res, next: Next): Promise<void> => {
                 },
                 limits: PLAN_CONFIG.free.limits,
             });
-
-            console.log('✅ UserProfile created successfully');
         } else {
             // Verificar si la suscripción está vencida (skip lifetime)
             const isExpired =
@@ -107,8 +97,6 @@ const authenticate = async (req: Req, res: Res, next: Next): Promise<void> => {
                 new Date() > userProfile.subscription.currentPeriodEnd;
 
             if (isExpired) {
-                console.log('⚠️ Subscription expired for user:', user.email);
-
                 // Volver a plan free si la suscripción venció (pero NO si es lifetime)
                 if (userProfile.subscription.planId !== 'free' && userProfile.subscription.planId !== 'lifetime') {
                     userProfile.subscription.status = 'inactive';

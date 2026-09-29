@@ -1,6 +1,13 @@
 import { Router } from 'express';
 import { authenticate, optionalAuth } from '../auth/authMiddleware.js';
-import { getMe, getProfile, getPublicInfo, getBusinessProfile, updateBusinessProfile } from './userController.js';
+import {
+    getMe,
+    getProfile,
+    getPublicInfo,
+    getBusinessProfile,
+    updateBusinessProfile,
+    deleteAccount,
+} from './userController.js';
 
 const router = Router();
 
@@ -16,5 +23,8 @@ router.get('/me', authenticate, getMe);
 // Business profile endpoints
 router.get('/business-profile', authenticate, getBusinessProfile);
 router.put('/business-profile', authenticate, updateBusinessProfile);
+
+// Eliminar cuenta y todos los datos del usuario
+router.delete('/me', authenticate, deleteAccount);
 
 export default router;

@@ -57,8 +57,6 @@ passport.deserializeUser(async (id: string, done) => {
                             maxServices: 3,
                         },
                     });
-
-                    console.log('✅ Nuevo usuario creado:', user.email);
                 }
 
                 return done(null, user);

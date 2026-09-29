@@ -305,8 +305,8 @@ export const updateAppointment = async (req: Req, res: Res): Promise<void> => {
             }
         }
 
-        // Update appointment
-        const appointment = await Appointment.findByIdAndUpdate(id, updateData, { new: true });
+        // Update appointment (filtra por userId como defensa en profundidad)
+        const appointment = await Appointment.findOneAndUpdate({ _id: id, userId }, updateData, { new: true });
 
         if (!appointment) {
             res.status(404).json({
