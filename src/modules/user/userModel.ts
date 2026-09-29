@@ -103,7 +103,9 @@ UserProfileSchema.methods.hasActivePlan = function (requiredPlan: PlanId): boole
     const userLevel = planHierarchy[userPlanId];
     const requiredLevel = planHierarchy[requiredPlan];
 
-    return (this.subscription.status === 'active' || this.subscription.status === 'lifetime') && userLevel >= requiredLevel;
+    return (
+        (this.subscription.status === 'active' || this.subscription.status === 'lifetime') && userLevel >= requiredLevel
+    );
 };
 
 // Método helper para verificar si la suscripción está vencida

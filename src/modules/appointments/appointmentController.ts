@@ -23,7 +23,7 @@ import Appointment from './appointmentModel.js';
  */
 export const getAllAppointments = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
         const { date, dateFrom, dateTo } = req.query;
 
         // Build query
@@ -74,7 +74,7 @@ export const getAllAppointments = async (req: Req, res: Res): Promise<void> => {
  */
 export const createAppointment = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
         const { date: dateStr, time, clientName, service } = req.body;
         console.log(req.body);
 
@@ -199,7 +199,7 @@ export const createAppointment = async (req: Req, res: Res): Promise<void> => {
  */
 export const updateAppointment = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
         const { id } = req.params;
         const { date: dateStr, time, clientName, service } = req.body;
 
@@ -338,7 +338,7 @@ export const updateAppointment = async (req: Req, res: Res): Promise<void> => {
  */
 export const deleteAppointment = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
         const { id } = req.params;
 
         const appointment = await Appointment.findOneAndDelete({ _id: id, userId });
@@ -367,7 +367,7 @@ export const deleteAppointment = async (req: Req, res: Res): Promise<void> => {
  */
 export const getAvailableSlots = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
         const { date: dateStr, duration } = req.query;
 
         // Validate date parameter

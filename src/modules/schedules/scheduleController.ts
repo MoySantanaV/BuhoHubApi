@@ -7,7 +7,7 @@ import UserSchedule from './scheduleModel.js';
  */
 export const getWorkSchedules = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
 
         const userSchedule = await UserSchedule.findOne({ userId }).lean();
 
@@ -39,7 +39,7 @@ export const getWorkSchedules = async (req: Req, res: Res): Promise<void> => {
  */
 export const saveWorkSchedules = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
         const schedules = req.body;
 
         console.log(schedules);

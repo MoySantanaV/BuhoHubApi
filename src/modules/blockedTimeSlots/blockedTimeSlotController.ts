@@ -7,7 +7,7 @@ import BlockedTimeSlot from './blockedTimeSlotModel.js';
  */
 export const getAllBlockedTimeSlots = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
 
         const blockedSlots = await BlockedTimeSlot.find({ userId }).sort({ date: 1, startTime: 1 }).lean();
 
@@ -35,7 +35,7 @@ export const getAllBlockedTimeSlots = async (req: Req, res: Res): Promise<void> 
  */
 export const createBlockedTimeSlot = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
         const { date: dateStr, startTime, endTime, reason } = req.body;
 
         // Validate required fields
@@ -139,7 +139,7 @@ export const createBlockedTimeSlot = async (req: Req, res: Res): Promise<void> =
  */
 export const deleteBlockedTimeSlot = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
         const { id } = req.params;
 
         // Find and delete (only if belongs to user)

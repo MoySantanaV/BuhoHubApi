@@ -7,7 +7,7 @@ import AppointmentInterval from './appointmentIntervalModel.js';
  */
 export const getAppointmentInterval = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
 
         const appointmentInterval = await AppointmentInterval.findOne({ userId });
 
@@ -29,7 +29,7 @@ export const getAppointmentInterval = async (req: Req, res: Res): Promise<void> 
  */
 export const updateAppointmentInterval = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
         const { interval } = req.body;
 
         // Validate interval

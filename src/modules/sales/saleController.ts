@@ -10,7 +10,7 @@ import Client from '../clients/clientModel.js';
  */
 export const getAllSales = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
         const { dateFrom, dateTo, period } = req.query;
 
         // Build query
@@ -67,7 +67,7 @@ export const getAllSales = async (req: Req, res: Res): Promise<void> => {
  */
 export const createSale = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
         const { products, hasTax = false, clientId } = req.body;
 
         // Validate products array
@@ -203,7 +203,7 @@ export const createSale = async (req: Req, res: Res): Promise<void> => {
  */
 export const getSalesStats = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
         const { period = 'today' } = req.query;
 
         // Get date range

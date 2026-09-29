@@ -7,7 +7,7 @@ import NonWorkingDay from './nonWorkingDayModel.js';
  */
 export const getAllNonWorkingDays = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
 
         const nonWorkingDays = await NonWorkingDay.find({ userId }).sort({ date: 1 }).lean();
 
@@ -31,7 +31,7 @@ export const getAllNonWorkingDays = async (req: Req, res: Res): Promise<void> =>
  */
 export const toggleNonWorkingDay = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
         const { date: dateStr } = req.body;
 
         // Validate date

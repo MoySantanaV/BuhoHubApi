@@ -14,7 +14,7 @@ import UserSchedule from '../schedules/scheduleModel.js';
 // Obtener perfil del usuario autenticado
 export const getProfile = (req: Req, res: Res): void => {
     const user = req.user as IUser;
-    const userProfile = (req as any).userProfile as IUserProfile;
+    const userProfile = req.userProfile as IUserProfile;
 
     res.json({
         user: {
@@ -36,7 +36,7 @@ export const getProfile = (req: Req, res: Res): void => {
 // Obtener información completa del usuario (me)
 export const getMe = (req: Req, res: Res): void => {
     const user = req.user as IUser;
-    const userProfile = (req as any).userProfile as IUserProfile;
+    const userProfile = req.userProfile as IUserProfile;
 
     res.json({
         user: {

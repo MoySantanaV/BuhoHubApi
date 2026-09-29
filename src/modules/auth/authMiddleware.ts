@@ -109,8 +109,8 @@ const authenticate = async (req: Req, res: Res, next: Next): Promise<void> => {
         }
 
         // Adjuntar datos a la request
-        (req as any).user = user; // Asegurar que req.user esté disponible
-        (req as any).userProfile = userProfile;
+        req.user = user; // Asegurar que req.user esté disponible
+        req.userProfile = userProfile;
 
         next();
     } catch (error) {
@@ -125,12 +125,12 @@ const authenticate = async (req: Req, res: Res, next: Next): Promise<void> => {
 const optionalAuth = async (req: Req, _res: Res, next: Next): Promise<void> => {
     try {
         if (req.isAuthenticated() && req.user) {
-            const user = req.user as any;
+            const user = req.user;
 
             // Intentar obtener el perfil si está autenticado
             const userProfile = await UserProfile.findOne({ userId: user._id });
             if (userProfile) {
-                (req as any).userProfile = userProfile;
+                req.userProfile = userProfile;
             }
         }
         next();
@@ -142,7 +142,7 @@ const optionalAuth = async (req: Req, _res: Res, next: Next): Promise<void> => {
 // Middleware de autorización por plan
 const requirePlan = (requiredPlan: PlanId) => {
     return async (req: Req, res: Res, next: Next): Promise<void> => {
-        const userProfile = (req as any).userProfile;
+        const userProfile = req.userProfile;
 
         if (!userProfile) {
             res.status(401).json({
@@ -184,7 +184,7 @@ const requirePlan = (requiredPlan: PlanId) => {
 // Middleware de autorización por rol
 const requireRole = (requiredRole: 'admin') => {
     return async (req: Req, res: Res, next: Next): Promise<void> => {
-        const userProfile = (req as any).userProfile;
+        const userProfile = req.userProfile;
 
         if (!userProfile) {
             res.status(401).json({

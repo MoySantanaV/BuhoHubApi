@@ -1,4 +1,4 @@
-import { Schema } from 'mongoose';
+import { Types } from 'mongoose';
 import AppointmentInterval from '../../modules/appointmentInterval/appointmentIntervalModel.js';
 import BlockedTimeSlot from '../../modules/blockedTimeSlots/blockedTimeSlotModel.js';
 import NonWorkingDay from '../../modules/nonWorkingDays/nonWorkingDayModel.js';
@@ -9,7 +9,7 @@ import { doTimeRangesOverlap, isTimeInRange } from './timeSlotGenerator.js';
 /**
  * Check if a date is a non-working day for a user
  */
-export const isNonWorkingDay = async (userId: Schema.Types.ObjectId, date: Date): Promise<boolean> => {
+export const isNonWorkingDay = async (userId: Types.ObjectId, date: Date): Promise<boolean> => {
     const startOfDay = getStartOfDay(date);
     const endOfDay = getEndOfDay(date);
 
@@ -25,7 +25,7 @@ export const isNonWorkingDay = async (userId: Schema.Types.ObjectId, date: Date)
  * Get work schedules for a specific day of the week
  */
 export const getWorkScheduleForDay = async (
-    userId: Schema.Types.ObjectId,
+    userId: Types.ObjectId,
     dayOfWeek: number
 ): Promise<Array<{ start: string; end: string }>> => {
     const userSchedule = await UserSchedule.findOne({ userId });
@@ -58,7 +58,7 @@ export const isTimeWithinSchedule = (time: string, schedules: Array<{ start: str
 /**
  * Get appointment interval for a user (default to 30 if not set)
  */
-export const getAppointmentInterval = async (userId: Schema.Types.ObjectId): Promise<number> => {
+export const getAppointmentInterval = async (userId: Types.ObjectId): Promise<number> => {
     const appointmentInterval = await AppointmentInterval.findOne({ userId });
     return appointmentInterval?.interval || 30;
 };
@@ -67,7 +67,7 @@ export const getAppointmentInterval = async (userId: Schema.Types.ObjectId): Pro
  * Check if there's a blocked time slot conflict
  */
 export const hasBlockedSlotConflict = async (
-    userId: Schema.Types.ObjectId,
+    userId: Types.ObjectId,
     date: Date,
     time: string,
     durationMinutes: number = 30
@@ -111,7 +111,7 @@ export interface ValidationResult {
  * Checks: non-working day, within work schedule, not blocked
  */
 export const validateAppointmentTime = async (
-    userId: Schema.Types.ObjectId,
+    userId: Types.ObjectId,
     date: Date,
     time: string
 ): Promise<ValidationResult> => {
