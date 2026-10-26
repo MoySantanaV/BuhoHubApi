@@ -37,7 +37,13 @@ export interface IEmailVerification {
 }
 
 export interface IUserPreferences {
+    // Interruptor general de los avisos de agenda (los anuncios del equipo no dependen de él)
     notifications: boolean;
+    notificationTypes?: {
+        upcomingAppointment: boolean;
+        dailySummary: boolean;
+        appointmentChanges: boolean;
+    };
 }
 
 export interface IUser extends Document {
@@ -137,6 +143,11 @@ const UserSchema = new Schema<IUser>(
         },
         preferences: {
             notifications: { type: Boolean, default: true },
+            notificationTypes: {
+                upcomingAppointment: { type: Boolean, default: true },
+                dailySummary: { type: Boolean, default: true },
+                appointmentChanges: { type: Boolean, default: true },
+            },
         },
         resetPasswordToken: {
             type: String,

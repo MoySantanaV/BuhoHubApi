@@ -27,4 +27,10 @@ export const env = {
         from: process.env.EMAIL_FROM || 'BuhoHub <onboarding@resend.dev>',
     },
     appScheme: process.env.APP_SCHEME || 'buhohub',
+    notifications: {
+        // Protege el endpoint que llama el temporizador; sin él, el endpoint queda deshabilitado
+        cronSecret: process.env.CRON_SECRET || '',
+        // Opcional: token de "Enhanced Push Security" de Expo
+        expoAccessToken: process.env.EXPO_ACCESS_TOKEN || '',
+    },
 } as const;

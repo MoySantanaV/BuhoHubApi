@@ -17,6 +17,7 @@ import {
 } from '../../shared/utils/dateTimeHelpers.js';
 import { doTimeRangesOverlap, generateTimeSlots } from '../../shared/utils/timeSlotGenerator.js';
 import BlockedTimeSlot from '../blockedTimeSlots/blockedTimeSlotModel.js';
+import { notifyAppointmentChange, toAppointmentLike } from '../notifications/notificationService.js';
 import Appointment from './appointmentModel.js';
 
 /**
@@ -187,6 +188,13 @@ export const createAppointment = async (req: Req, res: Res): Promise<void> => {
             service: service.trim(),
         });
 
+        await notifyAppointmentChange({
+            userId: userId.toString(),
+            kind: 'created',
+            appointment: toAppointmentLike(appointment),
+            excludeDeviceId: req.get('x-device-id'),
+        });
+
         // Format response
         res.status(201).json({
             id: appointment._id.toString(),
@@ -343,6 +351,13 @@ export const updateAppointment = async (req: Req, res: Res): Promise<void> => {
             return;
         }
 
+        await notifyAppointmentChange({
+            userId: userId.toString(),
+            kind: 'updated',
+            appointment: toAppointmentLike(appointment),
+            excludeDeviceId: req.get('x-device-id'),
+        });
+
         // Format response
         res.json({
             id: appointment._id.toString(),
@@ -378,6 +393,13 @@ export const deleteAppointment = async (req: Req, res: Res): Promise<void> => {
             });
             return;
         }
+
+        await notifyAppointmentChange({
+            userId: userId.toString(),
+            kind: 'deleted',
+            appointment: toAppointmentLike(appointment),
+            excludeDeviceId: req.get('x-device-id'),
+        });
 
         res.status(204).send();
     } catch (error) {

@@ -15,6 +15,9 @@ import { toAuthUser } from '../auth/authPayload.js';
 import { normalizeEmail } from '../../shared/utils/identity.js';
 import { recordDeletedAccount, restoreUsageFromHistory } from './accountHistoryService.js';
 import { parseBusinessProfile } from './userValidation.js';
+import { parseNotificationPreferences } from '../notifications/notificationValidation.js';
+import PushDevice from '../notifications/pushDeviceModel.js';
+import NotificationLog from '../notifications/notificationLogModel.js';
 
 // Obtener perfil del usuario autenticado
 export const getProfile = (req: Req, res: Res): void => {
@@ -104,6 +107,8 @@ export const deleteAccount = async (req: Req, res: Res): Promise<void> => {
             BlockedTimeSlot.deleteMany({ userId }),
             UserSchedule.deleteMany({ userId }),
             Usage.deleteMany({ userId }),
+            PushDevice.deleteMany({ userId }),
+            NotificationLog.deleteMany({ userId }),
             UserProfile.deleteOne({ userId }),
         ]);
 
@@ -176,6 +181,16 @@ export const updateBusinessProfile = async (req: Req, res: Res): Promise<void> =
     }
 };
 
+// Forma de las preferencias que recibe la app (todo activo por defecto)
+const toPreferencesResponse = (preferences: IUser['preferences']) => ({
+    notifications: preferences?.notifications ?? true,
+    notificationTypes: {
+        upcomingAppointment: preferences?.notificationTypes?.upcomingAppointment ?? true,
+        dailySummary: preferences?.notificationTypes?.dailySummary ?? true,
+        appointmentChanges: preferences?.notificationTypes?.appointmentChanges ?? true,
+    },
+});
+
 // Obtener preferencias de la app del usuario
 export const getPreferences = async (req: Req, res: Res): Promise<void> => {
     try {
@@ -183,32 +198,31 @@ export const getPreferences = async (req: Req, res: Res): Promise<void> => {
 
         const userDoc = await User.findById(user._id).select('preferences').lean();
 
-        res.json({ notifications: userDoc?.preferences?.notifications ?? true });
+        res.json(toPreferencesResponse(userDoc?.preferences));
     } catch (error) {
         console.error('Error al obtener preferencias:', error);
         res.status(500).json({ message: 'Error al obtener preferencias' });
     }
 };
 
-// Actualizar preferencias de la app del usuario
+// Actualizar preferencias de la app del usuario (acepta cambios parciales)
 export const updatePreferences = async (req: Req, res: Res): Promise<void> => {
     try {
         const user = req.user as IUser;
-        const { notifications } = req.body;
 
-        if (typeof notifications !== 'boolean') {
-            res.status(400).json({
-                message: 'notifications debe ser verdadero o falso',
-                errors: [{ field: 'notifications', message: 'Debe ser booleano' }],
-            });
+        const { value, error } = parseNotificationPreferences(req.body);
+        if (error) {
+            res.status(400).json({ message: error, errors: [{ field: 'preferences', message: error }] });
             return;
         }
 
-        const updated = await User.findByIdAndUpdate(
-            user._id,
-            { $set: { 'preferences.notifications': notifications } },
-            { new: true }
-        )
+        const changes: Record<string, boolean> = {};
+        if (value.notifications !== undefined) changes['preferences.notifications'] = value.notifications;
+        for (const [type, enabled] of Object.entries(value.notificationTypes ?? {})) {
+            changes[`preferences.notificationTypes.${type}`] = enabled;
+        }
+
+        const updated = await User.findByIdAndUpdate(user._id, { $set: changes }, { new: true })
             .select('preferences')
             .lean();
 
@@ -217,7 +231,7 @@ export const updatePreferences = async (req: Req, res: Res): Promise<void> => {
             return;
         }
 
-        res.json({ notifications: updated.preferences?.notifications ?? notifications });
+        res.json(toPreferencesResponse(updated.preferences));
     } catch (error) {
         console.error('Error al actualizar preferencias:', error);
         res.status(500).json({ message: 'Error al actualizar preferencias' });
