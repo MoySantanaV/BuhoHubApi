@@ -48,6 +48,9 @@ export const getCurrentSubscription = async (req: Req, res: Res): Promise<void> 
             userId: profile.userId.toString(),
             planId,
             status,
+            // Si viene de la tienda, la app ofrece administrarla ahí (cancelar, cambiar el método de pago)
+            platform: profile.subscription.source === 'store' ? profile.subscription.store?.provider : undefined,
+            productId: profile.subscription.store?.productId,
             currentPeriodStart,
             currentPeriodEnd,
             cancelAtPeriodEnd,

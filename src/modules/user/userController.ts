@@ -89,6 +89,10 @@ export const deleteAccount = async (req: Req, res: Res): Promise<void> => {
         const user = req.user as IUser;
         const userId = user._id;
 
+        // Una suscripción de la tienda no se cancela al borrar la cuenta: hay que avisarlo
+        const hadStoreSubscription =
+            req.effectivePlan?.tier === 'pro' && req.userProfile?.subscription.source === 'store';
+
         // Rastro mínimo (solo hashes) para que borrar y volver a registrarse no reinicie los límites
         await recordDeletedAccount(
             userId,
@@ -120,7 +124,12 @@ export const deleteAccount = async (req: Req, res: Res): Promise<void> => {
             req.logout(() => {});
         }
 
-        res.json({ success: true, message: 'Cuenta eliminada correctamente' });
+        res.json({
+            success: true,
+            message: 'Cuenta eliminada correctamente',
+            // La baja del cobro se hace en Google Play
+            activeStoreSubscription: hadStoreSubscription,
+        });
     } catch (error) {
         console.error('Error al eliminar la cuenta:', error);
         res.status(500).json({ message: 'Error al eliminar la cuenta' });

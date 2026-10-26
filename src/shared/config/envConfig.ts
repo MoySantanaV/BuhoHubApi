@@ -27,6 +27,13 @@ export const env = {
         from: process.env.EMAIL_FROM || 'BuhoHub <onboarding@resend.dev>',
     },
     appScheme: process.env.APP_SCHEME || 'buhohub',
+    googlePlay: {
+        packageName: process.env.GOOGLE_PLAY_PACKAGE_NAME || 'com.buhohub.app',
+        // JSON de la cuenta de servicio (en crudo o en base64). Sin él, las compras quedan deshabilitadas
+        serviceAccountJson: process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON || '',
+        // Secreto que va en la URL de la suscripción push de Pub/Sub (avisos RTDN)
+        rtdnSecret: process.env.GOOGLE_PLAY_RTDN_SECRET || '',
+    },
     notifications: {
         // Protege el endpoint que llama el temporizador; sin él, el endpoint queda deshabilitado
         cronSecret: process.env.CRON_SECRET || '',

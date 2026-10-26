@@ -56,6 +56,9 @@ export interface PlanConfig {
     savings?: string;
     highlighted?: boolean;
     features: string[];
+    // Id del producto de suscripción en cada tienda (null/ausente = no se vende ahí)
+    googleProductId?: string;
+    appleProductId?: string;
 }
 
 export const DEFAULT_TAX: TaxConfig = { rate: 0.16, label: 'IVA' };
@@ -119,6 +122,7 @@ export const DEFAULT_PLANS: PlanConfig[] = [
         currency: 'MXN',
         interval: 'month',
         features: PRO_FEATURES,
+        googleProductId: 'pro_monthly',
     },
     {
         id: 'pro_annual',
@@ -132,6 +136,7 @@ export const DEFAULT_PLANS: PlanConfig[] = [
         originalPrice: 2988,
         savings: '2 meses gratis',
         highlighted: true,
+        googleProductId: 'pro_annual',
         features: [
             'Todo lo del plan mensual',
             'Ahorra $498 al año',

@@ -42,7 +42,11 @@ export const getPlans = async (): Promise<PlanConfig[]> => {
 
     if (changed) await setConfigValue('plans', plans);
 
-    return plans;
+    // Catálogos guardados antes de existir las tiendas no traen el id del producto: se completa con el de fábrica
+    return plans.map((plan) => ({
+        ...plan,
+        googleProductId: plan.googleProductId ?? DEFAULT_PLANS.find((d) => d.id === plan.id)?.googleProductId,
+    }));
 };
 
 /**

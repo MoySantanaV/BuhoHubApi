@@ -24,6 +24,17 @@ export interface IUserProfile extends Document {
         currentPeriodStart?: Date;
         currentPeriodEnd?: Date;
         cancelAtPeriodEnd: boolean;
+
+        // Compra en la tienda que respalda esta suscripción (cuando source = 'store')
+        store?: {
+            provider: 'google';
+            purchaseToken: string;
+            productId: string;
+            orderId?: string;
+            state?: string;
+            autoRenewing?: boolean;
+            lastSyncedAt?: Date;
+        };
     };
 
     // 🕒 AUDITORÍA
@@ -76,6 +87,15 @@ const UserProfileSchema = new Schema<IUserProfile>(
                 type: Boolean,
                 default: false,
             },
+            store: {
+                provider: { type: String, enum: ['google'] },
+                purchaseToken: String,
+                productId: String,
+                orderId: String,
+                state: String,
+                autoRenewing: Boolean,
+                lastSyncedAt: Date,
+            },
         },
     },
     {
@@ -88,6 +108,11 @@ const UserProfileSchema = new Schema<IUserProfile>(
 // Índices compuestos
 UserProfileSchema.index({ email: 1, role: 1 });
 UserProfileSchema.index({ 'subscription.status': 1 });
+// Una compra de la tienda solo puede pertenecer a una cuenta
+UserProfileSchema.index(
+    { 'subscription.store.purchaseToken': 1 },
+    { unique: true, partialFilterExpression: { 'subscription.store.purchaseToken': { $type: 'string' } } }
+);
 
 const UserProfile = model<IUserProfile>('UserProfile', UserProfileSchema);
 

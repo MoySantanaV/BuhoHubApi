@@ -41,7 +41,7 @@ const parsePlan = (input: unknown, index: number): Parsed<PlanConfig> => {
 
     const { id, tier, name, nameAccent, description, price, currency, interval, originalPrice, savings, highlighted } =
         input;
-    const { features } = input;
+    const { features, googleProductId, appleProductId } = input;
 
     if (typeof id !== 'string' || !id.trim()) return { error: `${at}: id requerido` };
     if (typeof tier !== 'string' || !TIERS.includes(tier as Tier)) return { error: `${at}: tier debe ser free o pro` };
@@ -73,6 +73,10 @@ const parsePlan = (input: unknown, index: number): Parsed<PlanConfig> => {
             savings: typeof savings === 'string' ? savings : undefined,
             highlighted: highlighted === true,
             features: features as string[],
+            googleProductId:
+                typeof googleProductId === 'string' && googleProductId.trim() ? googleProductId.trim() : undefined,
+            appleProductId:
+                typeof appleProductId === 'string' && appleProductId.trim() ? appleProductId.trim() : undefined,
         },
     };
 };
