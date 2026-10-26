@@ -11,6 +11,10 @@ import NonWorkingDay from '../nonWorkingDays/nonWorkingDayModel.js';
 import BlockedTimeSlot from '../blockedTimeSlots/blockedTimeSlotModel.js';
 import UserSchedule from '../schedules/scheduleModel.js';
 import Usage from '../subscriptions/usageModel.js';
+import { toAuthUser } from '../auth/authPayload.js';
+import { normalizeEmail } from '../../shared/utils/identity.js';
+import { recordDeletedAccount, restoreUsageFromHistory } from './accountHistoryService.js';
+import { parseBusinessProfile } from './userValidation.js';
 
 // Obtener perfil del usuario autenticado
 export const getProfile = (req: Req, res: Res): void => {
@@ -40,12 +44,7 @@ export const getMe = (req: Req, res: Res): void => {
     const userProfile = req.userProfile as IUserProfile;
 
     res.json({
-        user: {
-            id: user._id,
-            email: user.email,
-            name: user.name,
-            image: user.image,
-        },
+        user: toAuthUser(user),
         profile: {
             role: userProfile.role,
             subscription: userProfile.subscription,
@@ -87,6 +86,13 @@ export const deleteAccount = async (req: Req, res: Res): Promise<void> => {
         const user = req.user as IUser;
         const userId = user._id;
 
+        // Rastro mínimo (solo hashes) para que borrar y volver a registrarse no reinicie los límites
+        await recordDeletedAccount(
+            userId,
+            user.emailNormalized || normalizeEmail(user.email),
+            user.businessProfile?.phoneNormalized
+        );
+
         // Borra en paralelo todos los datos de negocio del usuario
         await Promise.all([
             Client.deleteMany({ userId }),
@@ -116,15 +122,42 @@ export const deleteAccount = async (req: Req, res: Res): Promise<void> => {
     }
 };
 
-// Actualizar perfil de negocio del usuario
+// Actualizar perfil de negocio del usuario (valida obligatorios y evita teléfonos/negocios repetidos)
 export const updateBusinessProfile = async (req: Req, res: Res): Promise<void> => {
     try {
         const user = req.user as IUser;
         const userId = user._id;
 
+        const parsed = parseBusinessProfile(req.body, user.email);
+        if (parsed.errors) {
+            res.status(400).json({ message: 'Revisa los datos del perfil', errors: parsed.errors });
+            return;
+        }
+
+        const { phoneNormalized, businessNameNormalized } = parsed.value;
+        const duplicate = await User.findOne({
+            _id: { $ne: userId },
+            $or: [
+                { 'businessProfile.phoneNormalized': phoneNormalized },
+                { 'businessProfile.businessNameNormalized': businessNameNormalized },
+            ],
+        }).select('businessProfile.phoneNormalized');
+
+        if (duplicate) {
+            const isPhone = duplicate.businessProfile?.phoneNormalized === phoneNormalized;
+            const field = isPhone ? 'phone' : 'businessName';
+            res.status(409).json({
+                message: isPhone
+                    ? 'Este teléfono ya está registrado en otra cuenta. Si es tuyo, escríbenos a soporte.'
+                    : 'Ese nombre de negocio ya está registrado en otra cuenta. Si es tuyo, escríbenos a soporte.',
+                errors: [{ field, message: 'Ya está registrado' }],
+            });
+            return;
+        }
+
         const updated = await User.findByIdAndUpdate(
             userId,
-            { $set: { businessProfile: req.body } },
+            { $set: { businessProfile: parsed.value, 'onboarding.profileCompleted': true } },
             { new: true, runValidators: false }
         );
 
@@ -132,6 +165,9 @@ export const updateBusinessProfile = async (req: Req, res: Res): Promise<void> =
             res.status(404).json({ error: 'Usuario no encontrado' });
             return;
         }
+
+        // Un teléfono que ya tuvo una cuenta eliminada hereda su uso del mes
+        await restoreUsageFromHistory(userId, { phoneNormalized });
 
         res.json(updated.businessProfile || {});
     } catch (error) {

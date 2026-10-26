@@ -5,10 +5,15 @@ import jwt from 'jsonwebtoken';
 import { env } from '../../shared/config/envConfig.js';
 import { Next, Req, Res } from '../../shared/types/express.js';
 import { buildResetPasswordEmail, sendEmail } from '../../shared/utils/email.js';
+import { emailQuery, isDisposableEmail, isValidEmail, normalizeEmail } from '../../shared/utils/identity.js';
 import User from '../user/userAuthModel.js';
 import UserProfile from '../user/userModel.js';
 import { ensureUserProfile } from '../user/userProfileService.js';
+import { restoreUsageFromHistory } from '../user/accountHistoryService.js';
 import passport from './authConfig.js';
+import { signApiToken, toAuthUser } from './authPayload.js';
+import { sendVerificationCode, verifyCode } from './emailVerificationService.js';
+import { ipRateLimit } from './rateLimitService.js';
 
 const router = express.Router();
 const usedTokens = new Set<string>();
@@ -55,62 +60,145 @@ router.use((req: Req, res: Res, next: Next) => {
     next();
 });
 
-// Registro con email y password
-router.post('/register', authLimiter, async (req: Req, res: Res) => {
+// Mensaje genérico para códigos de verificación (no revela si el correo existe)
+const CODE_MESSAGES = {
+    invalid: 'Código incorrecto',
+    expired: 'El código expiró. Solicita uno nuevo.',
+    too_many_attempts: 'Demasiados intentos. Solicita un código nuevo.',
+} as const;
+
+// Registro con email y password: crea la cuenta sin activar y envía un código al correo
+router.post('/register', ipRateLimit('register', 10, 15 * 60 * 1000), async (req: Req, res: Res) => {
     try {
         const { name, email, password } = req.body;
 
-        if (!email || !password) {
+        if (typeof email !== 'string' || typeof password !== 'string' || !email.trim() || !password) {
             return res.status(400).json({ message: 'Email y contraseña son requeridos' });
         }
 
-        if (password.length < 6) {
-            return res.status(400).json({ message: 'La contraseña debe tener al menos 6 caracteres' });
+        const cleanEmail = email.trim().toLowerCase();
+        if (!isValidEmail(cleanEmail)) {
+            return res.status(400).json({ message: 'Escribe un correo válido' });
         }
 
-        const existingUser = await User.findOne({ email: email.toLowerCase() });
-        if (existingUser) {
+        if (isDisposableEmail(cleanEmail)) {
+            return res.status(400).json({ message: 'Usa un correo real; los correos temporales no están permitidos' });
+        }
+
+        if (password.length < 8 || password.length > 128) {
+            return res.status(400).json({ message: 'La contraseña debe tener entre 8 y 128 caracteres' });
+        }
+
+        const emailNormalized = normalizeEmail(cleanEmail);
+        const existing = await User.findOne(emailQuery(cleanEmail)).select('+password +emailVerification');
+
+        if (existing) {
+            // Cuenta creada con Google: es la misma persona, se entra con Google (o se agrega contraseña con "olvidé mi contraseña")
+            if (!existing.password) {
+                return res.status(409).json({
+                    code: 'ACCOUNT_USES_GOOGLE',
+                    message: 'Ya tienes una cuenta con Google. Usa "Continuar con Google".',
+                });
+            }
+            // Registro nunca verificado: se reinicia con los datos nuevos y se reenvía el código
+            if (existing.emailVerified === false) {
+                existing.name = name || existing.name;
+                existing.password = password;
+                await existing.save();
+                await sendVerificationCode(existing, { force: true });
+                return res.status(201).json({ needsVerification: true, email: existing.email });
+            }
             return res.status(409).json({ message: 'Ya existe una cuenta con este email' });
         }
 
         const user = await User.create({
-            email: email.toLowerCase(),
-            name,
+            email: cleanEmail,
+            name: typeof name === 'string' ? name.trim() : undefined,
             password,
+            emailVerified: false,
+            onboarding: { profileCompleted: false, schedulesCompleted: false },
         });
 
-        await ensureUserProfile(user);
+        await Promise.all([ensureUserProfile(user), restoreUsageFromHistory(user._id, { emailNormalized })]);
+        await sendVerificationCode(user, { force: true });
 
-        const token = jwt.sign({ userId: user._id, email: user.email, type: 'api-access' }, env.session.secret, {
-            expiresIn: '7d',
-        });
-
-        return res.status(201).json({
-            user: { id: user._id, email: user.email, name: user.name, image: user.image },
-            token,
-        });
+        return res.status(201).json({ needsVerification: true, email: user.email });
     } catch (error) {
         console.error('❌ Error en registro:', error);
         return res.status(500).json({ message: 'Error al registrar usuario' });
     }
 });
 
+// Verificar el correo con el código de 6 dígitos; al acertar inicia sesión
+router.post('/verify-email', ipRateLimit('verify-email', 20, 15 * 60 * 1000), async (req: Req, res: Res) => {
+    try {
+        const { email, code } = req.body;
+
+        if (typeof email !== 'string' || typeof code !== 'string' || !/^\d{6}$/.test(code)) {
+            return res.status(400).json({ message: 'Escribe el código de 6 dígitos' });
+        }
+
+        const user = await User.findOne({ email: email.trim().toLowerCase() });
+        if (!user || user.emailVerified !== false) {
+            return res.status(400).json({ message: CODE_MESSAGES.invalid });
+        }
+
+        const result = await verifyCode(user, code);
+        if (result !== 'ok') {
+            return res.status(400).json({ code: result.toUpperCase(), message: CODE_MESSAGES[result] });
+        }
+
+        const verified = await User.findById(user._id);
+        return res.json({ user: toAuthUser(verified ?? user), token: signApiToken(user) });
+    } catch (error) {
+        console.error('❌ Error verificando correo:', error);
+        return res.status(500).json({ message: 'Error al verificar el correo' });
+    }
+});
+
+// Reenviar el código de verificación (respuesta idéntica exista o no la cuenta)
+router.post('/resend-code', ipRateLimit('resend-code', 10, 15 * 60 * 1000), async (req: Req, res: Res) => {
+    try {
+        const { email } = req.body;
+        if (typeof email !== 'string' || !email.trim()) {
+            return res.status(400).json({ message: 'El correo es requerido' });
+        }
+
+        const user = await User.findOne({ email: email.trim().toLowerCase() });
+        if (user && user.emailVerified === false) {
+            const result = await sendVerificationCode(user);
+            if (result === 'cooldown') {
+                return res.status(429).json({ message: 'Espera un minuto antes de pedir otro código' });
+            }
+            if (result === 'limited') {
+                return res.status(429).json({ message: 'Pediste demasiados códigos. Intenta más tarde.' });
+            }
+        }
+
+        return res.json({ message: 'Si el correo está pendiente de verificar, recibirás un código nuevo.' });
+    } catch (error) {
+        console.error('❌ Error reenviando código:', error);
+        return res.status(500).json({ message: 'Error al reenviar el código' });
+    }
+});
+
 // Login con email y password
-router.post('/login', authLimiter, async (req: Req, res: Res) => {
+router.post('/login', ipRateLimit('login', 10, 15 * 60 * 1000), async (req: Req, res: Res) => {
     try {
         const { email, password } = req.body;
 
-        if (!email || !password) {
+        if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
             return res.status(400).json({ message: 'Email y contraseña son requeridos' });
         }
 
-        const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
+        const user = await User.findOne(emailQuery(email)).select('+password');
         if (!user) {
             return res.status(401).json({ message: 'Credenciales inválidas' });
         }
 
         if (!user.password) {
             return res.status(401).json({
+                code: 'ACCOUNT_USES_GOOGLE',
                 message: 'Esta cuenta usa Google para iniciar sesión. Usa el botón de Google.',
             });
         }
@@ -120,14 +208,17 @@ router.post('/login', authLimiter, async (req: Req, res: Res) => {
             return res.status(401).json({ message: 'Credenciales inválidas' });
         }
 
-        const token = jwt.sign({ userId: user._id, email: user.email, type: 'api-access' }, env.session.secret, {
-            expiresIn: '7d',
-        });
+        // Contraseña correcta pero correo sin verificar: se manda un código nuevo y la app pide capturarlo
+        if (user.emailVerified === false) {
+            await sendVerificationCode(user);
+            return res.status(403).json({
+                code: 'EMAIL_NOT_VERIFIED',
+                message: 'Verifica tu correo para continuar',
+                email: user.email,
+            });
+        }
 
-        return res.json({
-            user: { id: user._id, email: user.email, name: user.name, image: user.image },
-            token,
-        });
+        return res.json({ user: toAuthUser(user), token: signApiToken(user) });
     } catch (error) {
         console.error('❌ Error en login:', error);
         return res.status(500).json({ message: 'Error al iniciar sesión' });
@@ -143,10 +234,10 @@ router.post('/forgot-password', authLimiter, async (req: Req, res: Res) => {
             return res.status(400).json({ message: 'El email es requerido' });
         }
 
-        const user = await User.findOne({ email: email.toLowerCase() });
+        const user = typeof email === 'string' ? await User.findOne(emailQuery(email)) : null;
 
-        // Si el usuario existe y tiene contraseña (no es solo de Google), genera el token
-        if (user?.password) {
+        // Cuentas con contraseña o solo de Google (así pueden agregar una): el correo prueba la propiedad
+        if (user) {
             const rawToken = crypto.randomBytes(32).toString('hex');
             user.resetPasswordToken = crypto.createHash('sha256').update(rawToken).digest('hex');
             user.resetPasswordExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hora
@@ -192,6 +283,11 @@ router.post('/reset-password', authLimiter, async (req: Req, res: Res) => {
 
         // El hook pre('save') vuelve a hashear la contraseña
         user.password = password;
+        // Recibió el enlace en su correo: queda probado que es suyo
+        if (user.emailVerified === false) {
+            user.emailVerified = true;
+            user.emailVerification = undefined;
+        }
         user.resetPasswordToken = undefined;
         user.resetPasswordExpires = undefined;
         await user.save();
@@ -307,7 +403,7 @@ router.get('/google/callback', (req: Req, res: Res, next) => {
 router.get('/session', (req: Req, res: Res) => {
     if (req.isAuthenticated() && req.user) {
         return res.json({
-            user: req.user,
+            user: toAuthUser(req.user),
             authenticated: true,
             sessionId: req.sessionID,
         });
@@ -346,25 +442,9 @@ router.post('/exchange-token', authLimiter, async (req: Req, res: Res) => {
             return res.status(404).json({ error: 'Usuario no encontrado' });
         }
 
-        // Generar JWT de larga duración para peticiones API (7 días)
-        const apiToken = jwt.sign(
-            {
-                userId: user._id,
-                email: user.email,
-                type: 'api-access',
-            },
-            env.session.secret,
-            { expiresIn: '7d' }
-        );
-
         return res.json({
-            user: {
-                id: user._id,
-                email: user.email,
-                name: user.name,
-                image: user.image,
-            },
-            token: apiToken, // ← Token JWT para las peticiones API
+            user: toAuthUser(user),
+            token: signApiToken(user), // ← Token JWT para las peticiones API
             authenticated: true,
         });
     } catch (error) {

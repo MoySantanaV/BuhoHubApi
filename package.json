@@ -25,6 +25,7 @@
         "format:check": "prettier --check \"src/**/*.{ts,js,json}\"",
         "type-check": "tsc --noEmit",
         "migrate:profiles": "tsx scripts/migrateProfiles.ts",
+        "migrate:accounts": "tsx scripts/migrateAccounts.ts",
         "check": "pnpm type-check && pnpm lint && pnpm format:check && pnpm test",
         "test": "node --import tsx --test 'src/**/*.test.ts'",
         "test:watch": "node --import tsx --test --watch 'src/**/*.test.ts'",

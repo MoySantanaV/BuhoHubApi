@@ -1,5 +1,6 @@
 import bcrypt from 'bcrypt';
 import { Document, Schema, model } from 'mongoose';
+import { normalizeEmail } from '../../shared/utils/identity.js';
 
 export interface IBusinessProfile {
     name?: string;
@@ -16,6 +17,23 @@ export interface IBusinessProfile {
     website?: string;
     experience?: string;
     certifications?: string;
+    // El usuario no tiene sitio web y quiere que lo contactemos para cotizarle uno
+    wantsWebsite?: boolean;
+    // Formas canónicas para detectar teléfonos y negocios repetidos entre cuentas
+    phoneNormalized?: string;
+    businessNameNormalized?: string;
+}
+
+export interface IOnboarding {
+    profileCompleted: boolean;
+    schedulesCompleted: boolean;
+}
+
+export interface IEmailVerification {
+    codeHash?: string;
+    expiresAt?: Date;
+    attempts: number;
+    lastSentAt?: Date;
 }
 
 export interface IUserPreferences {
@@ -27,6 +45,13 @@ export interface IUser extends Document {
     name?: string;
     image?: string;
     password?: string;
+    // Forma canónica del correo (Gmail sin puntos ni alias) para evitar cuentas duplicadas
+    emailNormalized?: string;
+    // `undefined` = cuenta anterior a la verificación (se considera verificada)
+    emailVerified?: boolean;
+    emailVerification?: IEmailVerification;
+    // `undefined` = cuenta anterior al onboarding (se considera completo)
+    onboarding?: IOnboarding;
 
     // OAuth providers
     googleId?: string;
@@ -55,6 +80,25 @@ const UserSchema = new Schema<IUser>(
             unique: true,
             lowercase: true,
             index: true,
+        },
+        emailNormalized: { type: String, unique: true, sparse: true },
+        emailVerified: { type: Boolean },
+        emailVerification: {
+            type: {
+                codeHash: String,
+                expiresAt: Date,
+                attempts: { type: Number, default: 0 },
+                lastSentAt: Date,
+            },
+            select: false,
+            _id: false,
+        },
+        onboarding: {
+            type: {
+                profileCompleted: { type: Boolean, default: false },
+                schedulesCompleted: { type: Boolean, default: false },
+            },
+            _id: false,
         },
         name: {
             type: String,
@@ -87,6 +131,9 @@ const UserSchema = new Schema<IUser>(
             website: String,
             experience: String,
             certifications: String,
+            wantsWebsite: Boolean,
+            phoneNormalized: String,
+            businessNameNormalized: String,
         },
         preferences: {
             notifications: { type: Boolean, default: true },
@@ -106,6 +153,22 @@ const UserSchema = new Schema<IUser>(
         collection: 'users',
     }
 );
+
+// Teléfono y nombre de negocio únicos entre cuentas (solo cuando están definidos)
+UserSchema.index(
+    { 'businessProfile.phoneNormalized': 1 },
+    { unique: true, partialFilterExpression: { 'businessProfile.phoneNormalized': { $type: 'string' } } }
+);
+UserSchema.index(
+    { 'businessProfile.businessNameNormalized': 1 },
+    { unique: true, partialFilterExpression: { 'businessProfile.businessNameNormalized': { $type: 'string' } } }
+);
+
+// Mantiene las formas canónicas sincronizadas con el correo
+UserSchema.pre('validate', function (next) {
+    if (this.isModified('email') && this.email) this.emailNormalized = normalizeEmail(this.email);
+    next();
+});
 
 // Hash password antes de guardar
 UserSchema.pre('save', async function (next) {

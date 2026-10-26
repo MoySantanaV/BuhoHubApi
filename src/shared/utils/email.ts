@@ -50,3 +50,19 @@ export const buildResetPasswordEmail = (resetUrl: string): { subject: string; ht
         </div>
     `,
 });
+
+/**
+ * Plantilla del correo con el código de verificación de la cuenta.
+ */
+export const buildVerificationEmail = (code: string): { subject: string; html: string } => ({
+    subject: `${code} es tu código de verificación de BuhoHub`,
+    html: `
+        <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; color: #1c1917;">
+            <h2 style="color: #7e22ce;">Verifica tu correo</h2>
+            <p>Escribe este código en la app para activar tu cuenta de BuhoHub:</p>
+            <p style="font-size: 32px; font-weight: 700; letter-spacing: 8px; margin: 24px 0;">${code}</p>
+            <p>El código expira en 10 minutos.</p>
+            <p style="color: #78716c; font-size: 13px;">Si no creaste una cuenta, ignora este correo.</p>
+        </div>
+    `,
+});
