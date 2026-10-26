@@ -10,6 +10,7 @@ import AppointmentInterval from '../appointmentInterval/appointmentIntervalModel
 import NonWorkingDay from '../nonWorkingDays/nonWorkingDayModel.js';
 import BlockedTimeSlot from '../blockedTimeSlots/blockedTimeSlotModel.js';
 import UserSchedule from '../schedules/scheduleModel.js';
+import Usage from '../subscriptions/usageModel.js';
 
 // Obtener perfil del usuario autenticado
 export const getProfile = (req: Req, res: Res): void => {
@@ -29,7 +30,7 @@ export const getProfile = (req: Req, res: Res): void => {
             currentPeriodEnd: userProfile.subscription.currentPeriodEnd,
         },
         role: userProfile.role,
-        limits: userProfile.limits,
+        limits: req.effectivePlan?.limits,
     });
 };
 
@@ -48,7 +49,7 @@ export const getMe = (req: Req, res: Res): void => {
         profile: {
             role: userProfile.role,
             subscription: userProfile.subscription,
-            limits: userProfile.limits,
+            limits: req.effectivePlan?.limits,
         },
     });
 };
@@ -96,6 +97,7 @@ export const deleteAccount = async (req: Req, res: Res): Promise<void> => {
             NonWorkingDay.deleteMany({ userId }),
             BlockedTimeSlot.deleteMany({ userId }),
             UserSchedule.deleteMany({ userId }),
+            Usage.deleteMany({ userId }),
             UserProfile.deleteOne({ userId }),
         ]);
 
@@ -135,5 +137,53 @@ export const updateBusinessProfile = async (req: Req, res: Res): Promise<void> =
     } catch (error) {
         console.error('Error al actualizar business profile:', error);
         res.status(500).json({ error: 'Error al actualizar perfil de negocio' });
+    }
+};
+
+// Obtener preferencias de la app del usuario
+export const getPreferences = async (req: Req, res: Res): Promise<void> => {
+    try {
+        const user = req.user as IUser;
+
+        const userDoc = await User.findById(user._id).select('preferences').lean();
+
+        res.json({ notifications: userDoc?.preferences?.notifications ?? true });
+    } catch (error) {
+        console.error('Error al obtener preferencias:', error);
+        res.status(500).json({ message: 'Error al obtener preferencias' });
+    }
+};
+
+// Actualizar preferencias de la app del usuario
+export const updatePreferences = async (req: Req, res: Res): Promise<void> => {
+    try {
+        const user = req.user as IUser;
+        const { notifications } = req.body;
+
+        if (typeof notifications !== 'boolean') {
+            res.status(400).json({
+                message: 'notifications debe ser verdadero o falso',
+                errors: [{ field: 'notifications', message: 'Debe ser booleano' }],
+            });
+            return;
+        }
+
+        const updated = await User.findByIdAndUpdate(
+            user._id,
+            { $set: { 'preferences.notifications': notifications } },
+            { new: true }
+        )
+            .select('preferences')
+            .lean();
+
+        if (!updated) {
+            res.status(404).json({ message: 'Usuario no encontrado' });
+            return;
+        }
+
+        res.json({ notifications: updated.preferences?.notifications ?? notifications });
+    } catch (error) {
+        console.error('Error al actualizar preferencias:', error);
+        res.status(500).json({ message: 'Error al actualizar preferencias' });
     }
 };

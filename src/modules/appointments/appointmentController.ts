@@ -1,3 +1,5 @@
+import { reserveFlowLimit, Reservation } from '../subscriptions/limitsMiddleware.js';
+import { periodOfDate, periodOfStoredDate } from '../subscriptions/limitsService.js';
 import { Req, Res } from '../../shared/types/express.js';
 import {
     getAppointmentInterval,
@@ -73,10 +75,11 @@ export const getAllAppointments = async (req: Req, res: Res): Promise<void> => {
  * Create a new appointment with validation
  */
 export const createAppointment = async (req: Req, res: Res): Promise<void> => {
+    let reservation: Reservation | null = null;
+
     try {
         const userId = req.user._id;
         const { date: dateStr, time, clientName, service } = req.body;
-        console.log(req.body);
 
         // Validate required fields
         if (!dateStr) {
@@ -119,6 +122,8 @@ export const createAppointment = async (req: Req, res: Res): Promise<void> => {
         let date: Date;
         try {
             date = parseDate(dateStr);
+            // parseDate no lanza con textos que no son fecha: devuelve una fecha inválida
+            if (Number.isNaN(date.getTime())) throw new Error('Fecha inválida');
         } catch (error) {
             res.status(400).json({
                 success: false,
@@ -168,6 +173,11 @@ export const createAppointment = async (req: Req, res: Res): Promise<void> => {
             return;
         }
 
+        // Reserva el cupo del mes de la cita (atómico). Va después de validar horario y conflictos
+        // para no gastar cupo en peticiones inválidas.
+        reservation = await reserveFlowLimit(req, res, 'maxAppointmentsPerMonth', periodOfDate(dateStr) ?? '');
+        if (!reservation) return;
+
         // Create appointment
         const appointment = await Appointment.create({
             userId,
@@ -186,6 +196,7 @@ export const createAppointment = async (req: Req, res: Res): Promise<void> => {
             service: appointment.service,
         });
     } catch (error) {
+        await reservation?.release();
         console.error('Error creating appointment:', error);
         res.status(500).json({
             success: false,
@@ -198,6 +209,8 @@ export const createAppointment = async (req: Req, res: Res): Promise<void> => {
  * Update an appointment with validation
  */
 export const updateAppointment = async (req: Req, res: Res): Promise<void> => {
+    let reservation: Reservation | null = null;
+
     try {
         const userId = req.user._id;
         const { id } = req.params;
@@ -220,6 +233,7 @@ export const updateAppointment = async (req: Req, res: Res): Promise<void> => {
         if (dateStr !== undefined) {
             try {
                 updateData.date = parseDate(dateStr);
+                if (Number.isNaN(updateData.date.getTime())) throw new Error('Fecha inválida');
             } catch (error) {
                 res.status(400).json({
                     success: false,
@@ -305,10 +319,23 @@ export const updateAppointment = async (req: Req, res: Res): Promise<void> => {
             }
         }
 
+        // Cambiar la cita a otro mes consume cupo en el mes nuevo (si no, se podría evadir el límite
+        // creando en un mes libre y moviéndola). Editar dentro del mismo mes nunca consume ni bloquea.
+        if (updateData.date && periodOfStoredDate(updateData.date) !== periodOfStoredDate(existingAppointment.date)) {
+            reservation = await reserveFlowLimit(
+                req,
+                res,
+                'maxAppointmentsPerMonth',
+                periodOfStoredDate(updateData.date)
+            );
+            if (!reservation) return;
+        }
+
         // Update appointment (filtra por userId como defensa en profundidad)
         const appointment = await Appointment.findOneAndUpdate({ _id: id, userId }, updateData, { new: true });
 
         if (!appointment) {
+            await reservation?.release();
             res.status(404).json({
                 success: false,
                 message: 'Cita no encontrada',
@@ -325,6 +352,7 @@ export const updateAppointment = async (req: Req, res: Res): Promise<void> => {
             service: appointment.service,
         });
     } catch (error) {
+        await reservation?.release();
         console.error('Error updating appointment:', error);
         res.status(500).json({
             success: false,

@@ -7,6 +7,8 @@ import {
     getBusinessProfile,
     updateBusinessProfile,
     deleteAccount,
+    getPreferences,
+    updatePreferences,
 } from './userController.js';
 
 const router = Router();
@@ -23,6 +25,10 @@ router.get('/me', authenticate, getMe);
 // Business profile endpoints
 router.get('/business-profile', authenticate, getBusinessProfile);
 router.put('/business-profile', authenticate, updateBusinessProfile);
+
+// Preferencias de la app (notificaciones)
+router.get('/preferences', authenticate, getPreferences);
+router.put('/preferences', authenticate, updatePreferences);
 
 // Eliminar cuenta y todos los datos del usuario
 router.delete('/me', authenticate, deleteAccount);

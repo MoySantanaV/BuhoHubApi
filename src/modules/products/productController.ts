@@ -1,3 +1,4 @@
+import { confirmCapacityOrReject } from '../subscriptions/limitsMiddleware.js';
 import { Req, Res } from '../../shared/types/express.js';
 import Product from './productModel.js';
 
@@ -85,6 +86,9 @@ export const createProduct = async (req: Req, res: Res): Promise<void> => {
             name: name.trim(),
             price,
         });
+
+        // Si otra petición simultánea ganó el último lugar del plan, este producto se descarta con un 403
+        if (!(await confirmCapacityOrReject(req, res, 'maxProducts', product._id))) return;
 
         // Format response
         res.status(201).json({

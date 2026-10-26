@@ -1,7 +1,7 @@
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import User, { IUser } from '../user/userAuthModel.js';
-import UserProfile from '../user/userModel.js';
+import { ensureUserProfile } from '../user/userProfileService.js';
 import { env } from '../../shared/config/envConfig.js';
 
 // Serializar usuario (guardar en sesión)
@@ -41,22 +41,8 @@ passport.deserializeUser(async (id: string, done) => {
                         image: profile.photos?.[0]?.value,
                     });
 
-                    // Crear perfil de usuario con plan free por defecto
-                    await UserProfile.create({
-                        userId: user._id,
-                        email: user.email,
-                        role: 'free',
-                        subscription: {
-                            status: 'inactive',
-                            planId: 'free',
-                            cancelAtPeriodEnd: false,
-                        },
-                        limits: {
-                            maxClients: 10,
-                            maxAppointments: 20,
-                            maxServices: 3,
-                        },
-                    });
+                    // Perfil de usuario con plan Gratis por defecto
+                    await ensureUserProfile(user);
                 }
 
                 return done(null, user);

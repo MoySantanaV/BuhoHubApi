@@ -22,13 +22,17 @@ export interface CalculatedSale {
     total: number;
 }
 
-const TAX_RATE = 0.16; // 16% IVA
+export const DEFAULT_TAX_RATE = 0.16; // 16% IVA; la tasa vigente viene de la configuración (AppConfig)
 
 /**
  * Calculate sale totals from products
  * Never trust client-provided totals - always calculate server-side
  */
-export const calculateSale = (products: SaleProduct[], hasTax: boolean): CalculatedSale => {
+export const calculateSale = (
+    products: SaleProduct[],
+    hasTax: boolean,
+    taxRate: number = DEFAULT_TAX_RATE
+): CalculatedSale => {
     // Calculate subtotal for each product
     const calculatedProducts = products.map((product) => ({
         name: product.name,
@@ -41,7 +45,7 @@ export const calculateSale = (products: SaleProduct[], hasTax: boolean): Calcula
     const subtotal = calculatedProducts.reduce((sum, product) => sum + product.subtotal, 0);
 
     // Calculate tax if applicable
-    const tax = hasTax ? subtotal * TAX_RATE : 0;
+    const tax = hasTax ? subtotal * taxRate : 0;
 
     // Calculate total
     const total = subtotal + tax;

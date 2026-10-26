@@ -65,3 +65,19 @@ describe('getPeriodDateRange', () => {
         assert.equal(start.getUTCDate(), 1);
     });
 });
+
+describe('calculateSale con tasa configurable', () => {
+    it('usa la tasa recibida en lugar de la tasa por defecto', () => {
+        const result = calculateSale([{ name: 'Corte', price: 100, quantity: 1 }], true, 0.08);
+
+        assert.equal(result.tax, 8);
+        assert.equal(result.total, 108);
+    });
+
+    it('no aplica impuesto si hasTax es false, aunque haya tasa', () => {
+        const result = calculateSale([{ name: 'Corte', price: 100, quantity: 1 }], false, 0.5);
+
+        assert.equal(result.tax, 0);
+        assert.equal(result.total, 100);
+    });
+});

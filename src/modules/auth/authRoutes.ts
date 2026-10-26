@@ -7,6 +7,7 @@ import { Next, Req, Res } from '../../shared/types/express.js';
 import { buildResetPasswordEmail, sendEmail } from '../../shared/utils/email.js';
 import User from '../user/userAuthModel.js';
 import UserProfile from '../user/userModel.js';
+import { ensureUserProfile } from '../user/userProfileService.js';
 import passport from './authConfig.js';
 
 const router = express.Router();
@@ -78,21 +79,7 @@ router.post('/register', authLimiter, async (req: Req, res: Res) => {
             password,
         });
 
-        await UserProfile.create({
-            userId: user._id,
-            email: user.email,
-            role: 'free',
-            subscription: {
-                status: 'inactive',
-                planId: 'free',
-                cancelAtPeriodEnd: false,
-            },
-            limits: {
-                maxClients: 10,
-                maxAppointments: 20,
-                maxServices: 3,
-            },
-        });
+        await ensureUserProfile(user);
 
         const token = jwt.sign({ userId: user._id, email: user.email, type: 'api-access' }, env.session.secret, {
             expiresIn: '7d',

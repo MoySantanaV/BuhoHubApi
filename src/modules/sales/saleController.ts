@@ -3,6 +3,7 @@ import { formatDate, formatTime, parseDate } from '../../shared/utils/dateTimeHe
 import { calculateSale, getPeriodDateRange } from '../../shared/utils/salesCalculations.js';
 import Sale from './saleModel.js';
 import Client from '../clients/clientModel.js';
+import { getTaxConfig } from '../appConfig/appConfigService.js';
 
 /**
  * Get all sales for the authenticated user
@@ -126,7 +127,8 @@ export const createSale = async (req: Req, res: Res): Promise<void> => {
         }
 
         // Calculate sale totals (NEVER trust client calculations)
-        const calculated = calculateSale(products, hasTax);
+        const { rate } = await getTaxConfig();
+        const calculated = calculateSale(products, hasTax, rate);
 
         // Set date and time to now
         const now = new Date();

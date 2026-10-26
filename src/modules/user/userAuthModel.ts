@@ -18,6 +18,10 @@ export interface IBusinessProfile {
     certifications?: string;
 }
 
+export interface IUserPreferences {
+    notifications: boolean;
+}
+
 export interface IUser extends Document {
     email: string;
     name?: string;
@@ -29,6 +33,9 @@ export interface IUser extends Document {
 
     // Business profile
     businessProfile?: IBusinessProfile;
+
+    // Preferencias de la app (se guardan en el servidor para todos sus dispositivos)
+    preferences?: IUserPreferences;
 
     // Recuperación de contraseña (token hasheado + expiración)
     resetPasswordToken?: string;
@@ -80,6 +87,9 @@ const UserSchema = new Schema<IUser>(
             website: String,
             experience: String,
             certifications: String,
+        },
+        preferences: {
+            notifications: { type: Boolean, default: true },
         },
         resetPasswordToken: {
             type: String,
