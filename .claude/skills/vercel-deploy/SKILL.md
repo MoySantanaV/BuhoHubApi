@@ -46,7 +46,7 @@ vercel env add MONGODB_URI production
 
 ## Checklist antes de producción
 
-- [ ] Variables de entorno de producción completas y con valores propios (no los de `.env.example`).
+- [ ] Variables de entorno de producción completas y con valores propios por entorno.
 - [ ] `SESSION_SECRET` fuerte y exclusivo de producción.
 - [ ] CORS restringido a orígenes reales (`FRONTEND_URL`, `BACKEND_URL`); revisa que no caiga en "permitir todo".
 - [ ] MongoDB de producción separado, con backups y acceso restringido.

@@ -36,7 +36,7 @@ Referencia: **OWASP API Security Top 10**. El backend es la única frontera de c
 - **Endurece:** `express-mongo-sanitize` (ya instalado) montado para neutralizar operadores `$`/`.` en las entradas y evitar inyección de operadores en las queries.
 
 ### API7 — Configuración y secretos
-- **Verifica:** sin secretos en git; `.env.*` ignorados salvo `.env.example`. `SESSION_SECRET` fuerte y por entorno.
+- **Verifica:** sin secretos en git; `.env.*` ignorados. `SESSION_SECRET` fuerte y por entorno.
 - **Endurece:** CORS restringido a orígenes reales; revisa el fallback que hoy permite orígenes desconocidos fuera de `dev`. Cookies `secure`+`sameSite:none` en producción. Sin `console.log` de cookies, sessionID, `req.user` ni datos personales.
 
 ### API9 — Manejo de errores
