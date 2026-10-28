@@ -1,6 +1,6 @@
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
-import User, { IUser } from '../user/userAuthModel.js';
+import User from '../user/userAuthModel.js';
 import { ensureUserProfile } from '../user/userProfileService.js';
 import { env } from '../../shared/config/envConfig.js';
 import { emailQuery, normalizeEmail } from '../../shared/utils/identity.js';
@@ -37,19 +37,12 @@ passport.deserializeUser(async (id: string, done) => {
                 // 1. Cuenta ya enlazada con este Google
                 let user = await User.findOne({ googleId: profile.id });
 
-                // 2. Misma persona que se registró con correo y contraseña: se enlaza a esa cuenta
+                // 2. Mismo correo (o alias de Gmail) que una cuenta anterior: se enlaza a esa cuenta
                 if (!user && emailNormalized) {
-                    user = await User.findOne(emailQuery(googleEmail!)).select('+password');
+                    user = await User.findOne(emailQuery(googleEmail!));
                     if (user) {
                         user.googleId = profile.id;
                         user.image = user.image || profile.photos?.[0]?.value;
-                        // Google ya comprobó el correo. Si el registro con contraseña nunca se verificó,
-                        // esa contraseña pudo ponerla otra persona: se descarta.
-                        if (user.emailVerified === false) {
-                            user.password = undefined;
-                            user.emailVerified = true;
-                            user.emailVerification = undefined;
-                        }
                         await user.save();
                     }
                 }
@@ -61,7 +54,6 @@ passport.deserializeUser(async (id: string, done) => {
                         email: googleEmail,
                         name: profile.displayName,
                         image: profile.photos?.[0]?.value,
-                        emailVerified: true,
                         onboarding: { profileCompleted: false, schedulesCompleted: false },
                     });
 

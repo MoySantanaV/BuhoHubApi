@@ -16,7 +16,7 @@ Referencia: **OWASP API Security Top 10**. El backend es la única frontera de c
 
 ### API2 — Autenticación
 - **Verifica:** endpoints de datos con `authenticate`; JWT verificado (firma y expiración); `userId` tomado de `req.user`, jamás del body/query.
-- **Endurece:** rate limiting en `login`, `register` y `exchange-token` (ya con `express-rate-limit`), pero con store compartido en serverless (Mongo/Redis), no memoria por instancia. Longitud de contraseña razonable. Tokens de un solo uso persistidos en un store compartido, no en un `Set` en memoria.
+- **Endurece:** rate limiting en `exchange-token` (ya con `express-rate-limit`), pero con store compartido en serverless (Mongo/Redis), no memoria por instancia. El acceso es solo con Google: no hay contraseñas que proteger. Tokens de un solo uso persistidos en un store compartido, no en un `Set` en memoria.
 - **Idealmente:** secreto de JWT separado del de sesión; verificar que existan al arrancar.
 
 ### API3 — Exposición excesiva de datos

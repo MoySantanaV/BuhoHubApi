@@ -67,6 +67,7 @@ app.use(
         saveUninitialized: false,
         store: MongoStore.create({
             mongoUrl: env.mongodbUri,
+            dbName: env.mongodbName,
             collectionName: 'sessions',
             ttl: 60 * 60 * 24 * 7,
         }),

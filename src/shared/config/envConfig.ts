@@ -12,6 +12,8 @@ export const env = {
     nodeEnv: process.env.VERCEL ? 'production' : environment,
     port: parseInt(process.env.PORT || '3001', 10),
     mongodbUri: process.env.MONGODB_URI || '',
+    // Nombre de la base; si existe, pisa el que trae la URL (así una misma URL sirve para varios entornos)
+    mongodbName: process.env.MONGODB_DB_NAME || undefined,
     session: {
         secret: process.env.SESSION_SECRET || '',
     },
@@ -21,10 +23,6 @@ export const env = {
     google: {
         clientId: process.env.GOOGLE_CLIENT_ID || '',
         clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
-    },
-    resend: {
-        apiKey: process.env.RESEND_API_KEY || '',
-        from: process.env.EMAIL_FROM || 'BuhoHub <onboarding@resend.dev>',
     },
     appScheme: process.env.APP_SCHEME || 'buhohub',
     googlePlay: {

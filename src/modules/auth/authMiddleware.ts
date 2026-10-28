@@ -44,15 +44,6 @@ const authenticate = async (req: Req, res: Res, next: Next): Promise<void> => {
             return;
         }
 
-        // Cuenta creada con correo y contraseña que aún no verifica el código
-        if (user.emailVerified === false) {
-            res.status(403).json({
-                code: 'EMAIL_NOT_VERIFIED',
-                message: 'Verifica tu correo para continuar',
-            });
-            return;
-        }
-
         // Buscar o crear perfil de usuario (siempre nace en el plan Gratis)
         const [userProfile, tiers] = await Promise.all([ensureUserProfile(user), getTiers()]);
 

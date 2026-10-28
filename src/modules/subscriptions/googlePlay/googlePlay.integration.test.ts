@@ -42,7 +42,7 @@ describe('suscripciones con Google Play', () => {
     });
 
     const makeUser = async (email: string) => {
-        const user = await m.User.create({ email, name: email, emailVerified: true });
+        const user = await m.User.create({ email, name: email });
         await m.ensureUserProfile(user);
         const id = user._id.toString();
         return {

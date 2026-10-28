@@ -1,4 +1,3 @@
-import bcrypt from 'bcrypt';
 import { Document, Schema, model } from 'mongoose';
 import { normalizeEmail } from '../../shared/utils/identity.js';
 
@@ -29,13 +28,6 @@ export interface IOnboarding {
     schedulesCompleted: boolean;
 }
 
-export interface IEmailVerification {
-    codeHash?: string;
-    expiresAt?: Date;
-    attempts: number;
-    lastSentAt?: Date;
-}
-
 export interface IUserPreferences {
     // Interruptor general de los avisos de agenda (los anuncios del equipo no dependen de él)
     notifications: boolean;
@@ -50,12 +42,8 @@ export interface IUser extends Document {
     email: string;
     name?: string;
     image?: string;
-    password?: string;
     // Forma canónica del correo (Gmail sin puntos ni alias) para evitar cuentas duplicadas
     emailNormalized?: string;
-    // `undefined` = cuenta anterior a la verificación (se considera verificada)
-    emailVerified?: boolean;
-    emailVerification?: IEmailVerification;
     // `undefined` = cuenta anterior al onboarding (se considera completo)
     onboarding?: IOnboarding;
 
@@ -68,14 +56,8 @@ export interface IUser extends Document {
     // Preferencias de la app (se guardan en el servidor para todos sus dispositivos)
     preferences?: IUserPreferences;
 
-    // Recuperación de contraseña (token hasheado + expiración)
-    resetPasswordToken?: string;
-    resetPasswordExpires?: Date;
-
     createdAt: Date;
     updatedAt: Date;
-
-    comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
 const UserSchema = new Schema<IUser>(
@@ -88,17 +70,6 @@ const UserSchema = new Schema<IUser>(
             index: true,
         },
         emailNormalized: { type: String, unique: true, sparse: true },
-        emailVerified: { type: Boolean },
-        emailVerification: {
-            type: {
-                codeHash: String,
-                expiresAt: Date,
-                attempts: { type: Number, default: 0 },
-                lastSentAt: Date,
-            },
-            select: false,
-            _id: false,
-        },
         onboarding: {
             type: {
                 profileCompleted: { type: Boolean, default: false },
@@ -108,10 +79,6 @@ const UserSchema = new Schema<IUser>(
         },
         name: {
             type: String,
-        },
-        password: {
-            type: String,
-            select: false,
         },
         image: {
             type: String,
@@ -149,14 +116,6 @@ const UserSchema = new Schema<IUser>(
                 appointmentChanges: { type: Boolean, default: true },
             },
         },
-        resetPasswordToken: {
-            type: String,
-            select: false,
-        },
-        resetPasswordExpires: {
-            type: Date,
-            select: false,
-        },
     },
     {
         timestamps: true,
@@ -180,19 +139,6 @@ UserSchema.pre('validate', function (next) {
     if (this.isModified('email') && this.email) this.emailNormalized = normalizeEmail(this.email);
     next();
 });
-
-// Hash password antes de guardar
-UserSchema.pre('save', async function (next) {
-    if (!this.isModified('password') || !this.password) return next();
-    this.password = await bcrypt.hash(this.password, 10);
-    next();
-});
-
-// Comparar password
-UserSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
-    if (!this.password) return false;
-    return bcrypt.compare(candidatePassword, this.password);
-};
 
 const User = model<IUser>('User', UserSchema);
 

@@ -23,7 +23,7 @@ describe('notificaciones push', () => {
     let ticketOverrides: Record<string, Json> = {};
 
     const makeUser = async (email: string, role?: string) => {
-        const user = await m.User.create({ email, name: email, emailVerified: true });
+        const user = await m.User.create({ email, name: email });
         await m.ensureUserProfile(user);
         if (role) await m.UserProfile.updateOne({ userId: user._id }, { role });
         const id = user._id.toString();
