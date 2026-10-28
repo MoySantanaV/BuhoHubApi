@@ -1,5 +1,6 @@
 import { Types } from 'mongoose';
 import AppointmentInterval from '../../modules/appointmentInterval/appointmentIntervalModel.js';
+import Appointment from '../../modules/appointments/appointmentModel.js';
 import BlockedTimeSlot from '../../modules/blockedTimeSlots/blockedTimeSlotModel.js';
 import NonWorkingDay from '../../modules/nonWorkingDays/nonWorkingDayModel.js';
 import UserSchedule from '../../modules/schedules/scheduleModel.js';
@@ -63,6 +64,45 @@ export const getAppointmentInterval = async (userId: Types.ObjectId): Promise<nu
     return appointmentInterval?.interval || 30;
 };
 
+/** Suma minutos a una hora HH:mm: ("09:45", 30) -> "10:15". */
+export const addMinutesToTime = (time: string, minutes: number): string => {
+    const [hours, mins] = time.split(':').map(Number);
+    const total = hours * 60 + mins + minutes;
+    return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+};
+
+/**
+ * Busca una cita del mismo día que se cruce con [time, time + duración). Cada cita dura lo que
+ * duraba al agendarse; las anteriores a guardar la duración usan el intervalo actual. Así, cambiar
+ * el intervalo nunca mueve ni invalida citas ya hechas, pero tampoco permite encimar una nueva.
+ */
+export const findAppointmentConflict = async (
+    userId: Types.ObjectId,
+    date: Date,
+    time: string,
+    durationMinutes: number,
+    ignoreId?: string
+) => {
+    const [dayAppointments, interval] = await Promise.all([
+        Appointment.find({
+            userId,
+            date: { $gte: getStartOfDay(date), $lte: getEndOfDay(date) },
+            ...(ignoreId ? { _id: { $ne: ignoreId } } : {}),
+        }).lean(),
+        getAppointmentInterval(userId),
+    ]);
+    const end = addMinutesToTime(time, durationMinutes);
+
+    return dayAppointments.find((appointment) =>
+        doTimeRangesOverlap(
+            time,
+            end,
+            appointment.time,
+            addMinutesToTime(appointment.time, appointment.duration ?? interval)
+        )
+    );
+};
+
 /**
  * Check if there's a blocked time slot conflict
  */
@@ -85,13 +125,7 @@ export const hasBlockedSlotConflict = async (
         return false;
     }
 
-    // Calculate appointment end time
-    const [hours, minutes] = time.split(':').map(Number);
-    const totalMinutes = hours * 60 + minutes;
-    const endMinutes = totalMinutes + durationMinutes;
-    const endHours = Math.floor(endMinutes / 60);
-    const endMins = endMinutes % 60;
-    const appointmentEndTime = `${String(endHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')}`;
+    const appointmentEndTime = addMinutesToTime(time, durationMinutes);
 
     // Check if appointment overlaps with any blocked slot
     return blockedSlots.some((slot) => doTimeRangesOverlap(time, appointmentEndTime, slot.startTime, slot.endTime));

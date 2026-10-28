@@ -5,6 +5,8 @@ export interface IAppointment extends Document {
     userId: Schema.Types.ObjectId;
     date: Date;
     time: string; // HH:mm format
+    /** Minutos que dura; se guarda al agendar para que cambiar el intervalo no altere citas hechas */
+    duration?: number;
     clientName: string;
     service: string;
     createdAt: Date;
@@ -27,6 +29,12 @@ const AppointmentSchema = new Schema<IAppointment>(
         time: {
             type: String,
             required: true,
+        },
+        // Las citas anteriores a este campo no lo tienen: usan el intervalo actual
+        duration: {
+            type: Number,
+            min: 5,
+            max: 480,
         },
         clientName: {
             type: String,

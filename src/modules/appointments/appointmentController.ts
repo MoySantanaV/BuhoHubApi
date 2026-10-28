@@ -2,6 +2,7 @@ import { reserveFlowLimit, Reservation } from '../subscriptions/limitsMiddleware
 import { periodOfDate, periodOfStoredDate } from '../subscriptions/limitsService.js';
 import { Req, Res } from '../../shared/types/express.js';
 import {
+    findAppointmentConflict,
     getAppointmentInterval,
     getWorkScheduleForDay,
     isNonWorkingDay,
@@ -19,6 +20,9 @@ import { doTimeRangesOverlap, generateTimeSlots } from '../../shared/utils/timeS
 import BlockedTimeSlot from '../blockedTimeSlots/blockedTimeSlotModel.js';
 import { notifyAppointmentChange, toAppointmentLike } from '../notifications/notificationService.js';
 import Appointment from './appointmentModel.js';
+
+const conflictMessage = (existingTime: string, newTime: string) =>
+    existingTime === newTime ? `Ya existe una cita a las ${newTime}` : `Se cruza con la cita de las ${existingTime}`;
 
 /**
  * Get all appointments for the authenticated user
@@ -51,13 +55,17 @@ export const getAllAppointments = async (req: Req, res: Res): Promise<void> => {
         }
 
         // Execute query
-        const appointments = await Appointment.find(query).sort({ date: 1, time: 1 }).lean();
+        const [appointments, interval] = await Promise.all([
+            Appointment.find(query).sort({ date: 1, time: 1 }).lean(),
+            getAppointmentInterval(userId),
+        ]);
 
         // Format response
         const formattedAppointments = appointments.map((appointment) => ({
             id: appointment._id.toString(),
             date: formatDate(appointment.date),
             time: appointment.time,
+            duration: appointment.duration ?? interval,
             clientName: appointment.clientName,
             service: appointment.service,
         }));
@@ -155,22 +163,12 @@ export const createAppointment = async (req: Req, res: Res): Promise<void> => {
             return;
         }
 
-        // Check for appointment conflicts (same date and time)
-        const startOfDay = getStartOfDay(date);
-        const endOfDay = getEndOfDay(date);
-
-        const existingAppointment = await Appointment.findOne({
-            userId,
-            date: { $gte: startOfDay, $lte: endOfDay },
-            time,
-        });
-
-        if (existingAppointment) {
-            res.status(400).json({
-                success: false,
-                message: 'Ya existe una cita a las ' + time,
-                errors: [{ field: 'time', message: 'Ya existe una cita a las ' + time }],
-            });
+        // Una cita nueva dura el intervalo actual; no puede cruzarse con otra (cada una con su duración)
+        const interval = await getAppointmentInterval(userId);
+        const conflict = await findAppointmentConflict(userId, date, time, interval);
+        if (conflict) {
+            const message = conflictMessage(conflict.time, time);
+            res.status(400).json({ success: false, message, errors: [{ field: 'time', message }] });
             return;
         }
 
@@ -184,6 +182,7 @@ export const createAppointment = async (req: Req, res: Res): Promise<void> => {
             userId,
             date,
             time,
+            duration: interval,
             clientName: clientName.trim(),
             service: service.trim(),
         });
@@ -200,6 +199,7 @@ export const createAppointment = async (req: Req, res: Res): Promise<void> => {
             id: appointment._id.toString(),
             date: formatDate(appointment.date),
             time: appointment.time,
+            duration: appointment.duration ?? interval,
             clientName: appointment.clientName,
             service: appointment.service,
         });
@@ -306,23 +306,12 @@ export const updateAppointment = async (req: Req, res: Res): Promise<void> => {
                 return;
             }
 
-            // Check for conflicts with other appointments (exclude current appointment)
-            const startOfDay = getStartOfDay(newDate);
-            const endOfDay = getEndOfDay(newDate);
-
-            const conflictingAppointment = await Appointment.findOne({
-                userId,
-                _id: { $ne: id },
-                date: { $gte: startOfDay, $lte: endOfDay },
-                time: newTime,
-            });
-
-            if (conflictingAppointment) {
-                res.status(400).json({
-                    success: false,
-                    message: 'Ya existe una cita a las ' + newTime,
-                    errors: [{ field: 'time', message: 'Ya existe una cita a las ' + newTime }],
-                });
+            // Cruces con otras citas (la propia se excluye); conserva la duración con la que se agendó
+            const duration = existingAppointment.duration ?? (await getAppointmentInterval(userId));
+            const conflict = await findAppointmentConflict(userId, newDate, newTime, duration, id);
+            if (conflict) {
+                const message = conflictMessage(conflict.time, newTime);
+                res.status(400).json({ success: false, message, errors: [{ field: 'time', message }] });
                 return;
             }
         }
@@ -363,6 +352,7 @@ export const updateAppointment = async (req: Req, res: Res): Promise<void> => {
             id: appointment._id.toString(),
             date: formatDate(appointment.date),
             time: appointment.time,
+            duration: appointment.duration ?? (await getAppointmentInterval(userId)),
             clientName: appointment.clientName,
             service: appointment.service,
         });
