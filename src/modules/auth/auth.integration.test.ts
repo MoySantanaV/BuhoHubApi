@@ -17,6 +17,7 @@ const PROFILE = {
     profession: 'Médico',
     phone: '5512345678',
     address: 'Calle 1',
+    neighborhood: 'Centro',
     city: 'CDMX',
     state: 'CDMX',
     postalCode: '06600',

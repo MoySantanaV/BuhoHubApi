@@ -32,6 +32,11 @@ export const env = {
         // Secreto que va en la URL de la suscripción push de Pub/Sub (avisos RTDN)
         rtdnSecret: process.env.GOOGLE_PLAY_RTDN_SECRET || '',
     },
+    googlePlaces: {
+        // Llave de Google Maps Platform (Places API) para el autocompletado de direcciones. Sin ella, el
+        // autocompletado responde 503 y la app deja escribir la dirección a mano.
+        apiKey: process.env.GOOGLE_PLACES_API_KEY || '',
+    },
     notifications: {
         // Protege el endpoint que llama el temporizador; sin él, el endpoint queda deshabilitado
         cronSecret: process.env.CRON_SECRET || '',

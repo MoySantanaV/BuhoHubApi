@@ -8,6 +8,7 @@ export interface IBusinessProfile {
     phone?: string;
     email?: string;
     address?: string;
+    neighborhood?: string;
     city?: string;
     state?: string;
     postalCode?: string;
@@ -18,6 +19,10 @@ export interface IBusinessProfile {
     certifications?: string;
     // El usuario no tiene sitio web y quiere que lo contactemos para cotizarle uno
     wantsWebsite?: boolean;
+    // Dirección elegida del buscador de Google (verificada); sin ellos, la dirección se escribió a mano
+    placeId?: string;
+    latitude?: number;
+    longitude?: number;
     // Formas canónicas para detectar teléfonos y negocios repetidos entre cuentas
     phoneNormalized?: string;
     businessNameNormalized?: string;
@@ -96,6 +101,7 @@ const UserSchema = new Schema<IUser>(
             phone: String,
             email: String,
             address: String,
+            neighborhood: String,
             city: String,
             state: String,
             postalCode: String,
@@ -105,6 +111,9 @@ const UserSchema = new Schema<IUser>(
             experience: String,
             certifications: String,
             wantsWebsite: Boolean,
+            placeId: String,
+            latitude: Number,
+            longitude: Number,
             phoneNormalized: String,
             businessNameNormalized: String,
         },

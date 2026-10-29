@@ -14,6 +14,7 @@ const REQUIRED: { field: keyof IBusinessProfile; label: string; max: number }[] 
     { field: 'profession', label: 'La profesión', max: 100 },
     { field: 'phone', label: 'El teléfono', max: 20 },
     { field: 'address', label: 'La dirección', max: 200 },
+    { field: 'neighborhood', label: 'La colonia', max: 100 },
     { field: 'city', label: 'La ciudad', max: 100 },
     { field: 'state', label: 'El estado', max: 100 },
     { field: 'postalCode', label: 'El código postal', max: 10 },
@@ -34,6 +35,8 @@ const isHttpUrl = (value: string): boolean => {
         return false;
     }
 };
+
+const PLACE_ID = /^[A-Za-z0-9_-]{10,300}$/;
 
 const text = (input: unknown): string => (typeof input === 'string' ? input.trim() : '');
 
@@ -75,6 +78,26 @@ export const parseBusinessProfile = (body: unknown, accountEmail: string): Parse
         value.website = website;
     }
     value.wantsWebsite = !website && input.wantsWebsite === true;
+
+    // Dirección verificada con el buscador: lugar y coordenadas van juntos. Sin lugar no se guarda nada.
+    const placeId = text(input.placeId);
+    if (placeId) {
+        const latitude = Number(input.latitude);
+        const longitude = Number(input.longitude);
+        if (
+            !PLACE_ID.test(placeId) ||
+            !Number.isFinite(latitude) ||
+            !Number.isFinite(longitude) ||
+            Math.abs(latitude) > 90 ||
+            Math.abs(longitude) > 180
+        ) {
+            errors.push({ field: 'address', message: 'La dirección elegida no es válida' });
+        } else {
+            value.placeId = placeId;
+            value.latitude = latitude;
+            value.longitude = longitude;
+        }
+    }
 
     if (errors.length > 0) return { errors };
 

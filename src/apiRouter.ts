@@ -8,6 +8,7 @@ import clientRoutes from './modules/clients/clientRoutes.js';
 import feedbackRoutes from './modules/feedback/feedbackRoutes.js';
 import { cronRoutes, deviceRoutes } from './modules/notifications/notificationRoutes.js';
 import nonWorkingDayRoutes from './modules/nonWorkingDays/nonWorkingDayRoutes.js';
+import placesRoutes from './modules/places/placesRoutes.js';
 import productRoutes from './modules/products/productRoutes.js';
 import saleRoutes from './modules/sales/saleRoutes.js';
 import scheduleRoutes from './modules/schedules/scheduleRoutes.js';
@@ -30,6 +31,7 @@ router.use('/appointments', appointmentRoutes);
 router.use('/sales', saleRoutes);
 router.use('/subscriptions', subscriptionRoutes);
 router.use('/feedback', feedbackRoutes);
+router.use('/places', placesRoutes);
 router.use('/notifications', deviceRoutes);
 router.use('/internal/notifications', cronRoutes);
 
