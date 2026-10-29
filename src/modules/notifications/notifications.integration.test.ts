@@ -65,17 +65,27 @@ describe('notificaciones push', () => {
             import('mongoose'),
             import('jsonwebtoken'),
         ]);
-        const [apiRouter, User, UserProfile, Appointment, PushDevice, NotificationLog, profileService, service] =
-            await Promise.all([
-                import('../../apiRouter.js'),
-                import('../user/userAuthModel.js'),
-                import('../user/userModel.js'),
-                import('../appointments/appointmentModel.js'),
-                import('./pushDeviceModel.js'),
-                import('./notificationLogModel.js'),
-                import('../user/userProfileService.js'),
-                import('./notificationService.js'),
-            ]);
+        const [
+            apiRouter,
+            User,
+            UserProfile,
+            Appointment,
+            PushDevice,
+            NotificationLog,
+            Feedback,
+            profileService,
+            service,
+        ] = await Promise.all([
+            import('../../apiRouter.js'),
+            import('../user/userAuthModel.js'),
+            import('../user/userModel.js'),
+            import('../appointments/appointmentModel.js'),
+            import('./pushDeviceModel.js'),
+            import('./notificationLogModel.js'),
+            import('../feedback/feedbackModel.js'),
+            import('../user/userProfileService.js'),
+            import('./notificationService.js'),
+        ]);
 
         mongod = await MongoMemoryServer.create();
         await mongoose.default.connect(mongod.getUri());
@@ -88,6 +98,7 @@ describe('notificaciones push', () => {
             Appointment: Appointment.default,
             PushDevice: PushDevice.default,
             NotificationLog: NotificationLog.default,
+            Feedback: Feedback.default,
             ensureUserProfile: profileService.ensureUserProfile,
             service,
             mongoose: mongoose.default,
@@ -337,13 +348,15 @@ describe('notificaciones push', () => {
             assert.equal(expoCalls.flat().length, 2);
         });
 
-        it('al borrar la cuenta se eliminan los dispositivos', async () => {
+        it('al borrar la cuenta se eliminan los dispositivos y los comentarios enviados', async () => {
             const ana = await makeUser('borra@x.mx');
             await register(ana.token, 1);
+            await m.Feedback.create({ userId: ana.id, category: 'other', message: 'Hola' });
 
             const del = await call(ana.token, 'DELETE', '/v1/users/me');
             assert.equal(del.status, 200);
             assert.equal(await m.PushDevice.countDocuments({ userId: ana.id }), 0);
+            assert.equal(await m.Feedback.countDocuments({ userId: ana.id }), 0);
         });
     });
 });

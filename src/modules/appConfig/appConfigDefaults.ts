@@ -88,8 +88,6 @@ const PRO_FEATURES = [
     'Punto de venta con IVA automático',
     'Historial completo de ventas',
     'Dashboard en tiempo real',
-    'Reportes detallados',
-    'Soporte prioritario 24/7',
 ];
 
 export const FREE_PLAN: PlanConfig = {
@@ -137,14 +135,6 @@ export const DEFAULT_PLANS: PlanConfig[] = [
         savings: '2 meses gratis',
         highlighted: true,
         googleProductId: 'pro_annual',
-        features: [
-            'Todo lo del plan mensual',
-            'Ahorra $498 al año',
-            'Paga solo 10 meses',
-            'Backup automático en la nube',
-            'Exportación de reportes avanzados',
-            'Sincronización multi-dispositivo',
-            'Acceso anticipado a nuevas funciones',
-        ],
+        features: ['Todo lo del plan mensual', 'Ahorra $498 al año', 'Paga solo 10 meses'],
     },
 ];

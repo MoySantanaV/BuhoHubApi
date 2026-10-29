@@ -18,6 +18,7 @@ import { parseBusinessProfile } from './userValidation.js';
 import { parseNotificationPreferences } from '../notifications/notificationValidation.js';
 import PushDevice from '../notifications/pushDeviceModel.js';
 import NotificationLog from '../notifications/notificationLogModel.js';
+import Feedback from '../feedback/feedbackModel.js';
 
 // Obtener perfil del usuario autenticado
 export const getProfile = (req: Req, res: Res): void => {
@@ -113,6 +114,7 @@ export const deleteAccount = async (req: Req, res: Res): Promise<void> => {
             Usage.deleteMany({ userId }),
             PushDevice.deleteMany({ userId }),
             NotificationLog.deleteMany({ userId }),
+            Feedback.deleteMany({ userId }),
             UserProfile.deleteOne({ userId }),
         ]);
 
