@@ -42,11 +42,9 @@ app.use(
                 return callback(null, true);
             }
 
-            const allowedOrigins = [
-                'http://localhost:3000',
-                env.betterAuth.url,
-                process.env.FRONTEND_URL,
-            ].filter(Boolean) as string[];
+            const allowedOrigins = ['http://localhost:3000', env.betterAuth.url, process.env.FRONTEND_URL].filter(
+                Boolean
+            ) as string[];
 
             if (allowedOrigins.includes(origin)) {
                 callback(null, true);
@@ -69,6 +67,7 @@ app.use(
         saveUninitialized: false,
         store: MongoStore.create({
             mongoUrl: env.mongodbUri,
+            dbName: env.mongodbName,
             collectionName: 'sessions',
             ttl: 60 * 60 * 24 * 7,
         }),

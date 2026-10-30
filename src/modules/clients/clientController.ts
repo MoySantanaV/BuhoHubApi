@@ -1,3 +1,4 @@
+import { confirmCapacityOrReject } from '../subscriptions/limitsMiddleware.js';
 import { Req, Res } from '../../shared/types/express.js';
 import { formatDate, formatDateTime, parseDate, parseDateOrDateTime } from '../../shared/utils/dateTimeHelpers.js';
 import Client from './clientModel.js';
@@ -8,7 +9,7 @@ import Client from './clientModel.js';
  */
 export const getAllClients = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
         const { search, limit, offset } = req.query;
 
         // Build query
@@ -67,7 +68,7 @@ export const getAllClients = async (req: Req, res: Res): Promise<void> => {
  */
 export const createClient = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
         const { name, birthday, email, phone, notes } = req.body;
 
         // Validate required fields
@@ -123,6 +124,9 @@ export const createClient = async (req: Req, res: Res): Promise<void> => {
             notes: parsedNotes,
         });
 
+        // Si otra petición simultánea ganó el último lugar del plan, este cliente se descarta con un 403
+        if (!(await confirmCapacityOrReject(req, res, 'maxClients', client._id))) return;
+
         // Format response
         res.status(201).json({
             id: client._id.toString(),
@@ -152,7 +156,7 @@ export const createClient = async (req: Req, res: Res): Promise<void> => {
  */
 export const updateClient = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
         const { id } = req.params;
         const { name, birthday, email, phone, notes } = req.body;
 
@@ -209,7 +213,9 @@ export const updateClient = async (req: Req, res: Res): Promise<void> => {
                     res.status(400).json({
                         success: false,
                         message: 'Formato de notas inválido',
-                        errors: [{ field: 'notes', message: 'Formato de fecha en notas debe ser YYYY-MM-DD o ISO string' }],
+                        errors: [
+                            { field: 'notes', message: 'Formato de fecha en notas debe ser YYYY-MM-DD o ISO string' },
+                        ],
                     });
                     return;
                 }
@@ -258,7 +264,7 @@ export const updateClient = async (req: Req, res: Res): Promise<void> => {
  */
 export const deleteClient = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
         const { id } = req.params;
 
         // Find and delete client (only if belongs to user)

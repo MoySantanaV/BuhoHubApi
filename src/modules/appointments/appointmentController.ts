@@ -1,5 +1,8 @@
+import { reserveFlowLimit, Reservation } from '../subscriptions/limitsMiddleware.js';
+import { periodOfDate, periodOfStoredDate } from '../subscriptions/limitsService.js';
 import { Req, Res } from '../../shared/types/express.js';
 import {
+    findAppointmentConflict,
     getAppointmentInterval,
     getWorkScheduleForDay,
     isNonWorkingDay,
@@ -15,7 +18,11 @@ import {
 } from '../../shared/utils/dateTimeHelpers.js';
 import { doTimeRangesOverlap, generateTimeSlots } from '../../shared/utils/timeSlotGenerator.js';
 import BlockedTimeSlot from '../blockedTimeSlots/blockedTimeSlotModel.js';
+import { notifyAppointmentChange, toAppointmentLike } from '../notifications/notificationService.js';
 import Appointment from './appointmentModel.js';
+
+const conflictMessage = (existingTime: string, newTime: string) =>
+    existingTime === newTime ? `Ya existe una cita a las ${newTime}` : `Se cruza con la cita de las ${existingTime}`;
 
 /**
  * Get all appointments for the authenticated user
@@ -23,7 +30,7 @@ import Appointment from './appointmentModel.js';
  */
 export const getAllAppointments = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
         const { date, dateFrom, dateTo } = req.query;
 
         // Build query
@@ -48,13 +55,17 @@ export const getAllAppointments = async (req: Req, res: Res): Promise<void> => {
         }
 
         // Execute query
-        const appointments = await Appointment.find(query).sort({ date: 1, time: 1 }).lean();
+        const [appointments, interval] = await Promise.all([
+            Appointment.find(query).sort({ date: 1, time: 1 }).lean(),
+            getAppointmentInterval(userId),
+        ]);
 
         // Format response
         const formattedAppointments = appointments.map((appointment) => ({
             id: appointment._id.toString(),
             date: formatDate(appointment.date),
             time: appointment.time,
+            duration: appointment.duration ?? interval,
             clientName: appointment.clientName,
             service: appointment.service,
         }));
@@ -73,10 +84,11 @@ export const getAllAppointments = async (req: Req, res: Res): Promise<void> => {
  * Create a new appointment with validation
  */
 export const createAppointment = async (req: Req, res: Res): Promise<void> => {
+    let reservation: Reservation | null = null;
+
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
         const { date: dateStr, time, clientName, service } = req.body;
-        console.log(req.body);
 
         // Validate required fields
         if (!dateStr) {
@@ -119,6 +131,8 @@ export const createAppointment = async (req: Req, res: Res): Promise<void> => {
         let date: Date;
         try {
             date = parseDate(dateStr);
+            // parseDate no lanza con textos que no son fecha: devuelve una fecha inválida
+            if (Number.isNaN(date.getTime())) throw new Error('Fecha inválida');
         } catch (error) {
             res.status(400).json({
                 success: false,
@@ -149,32 +163,35 @@ export const createAppointment = async (req: Req, res: Res): Promise<void> => {
             return;
         }
 
-        // Check for appointment conflicts (same date and time)
-        const startOfDay = getStartOfDay(date);
-        const endOfDay = getEndOfDay(date);
-
-        const existingAppointment = await Appointment.findOne({
-            userId,
-            date: { $gte: startOfDay, $lte: endOfDay },
-            time,
-        });
-
-        if (existingAppointment) {
-            res.status(400).json({
-                success: false,
-                message: 'Ya existe una cita a las ' + time,
-                errors: [{ field: 'time', message: 'Ya existe una cita a las ' + time }],
-            });
+        // Una cita nueva dura el intervalo actual; no puede cruzarse con otra (cada una con su duración)
+        const interval = await getAppointmentInterval(userId);
+        const conflict = await findAppointmentConflict(userId, date, time, interval);
+        if (conflict) {
+            const message = conflictMessage(conflict.time, time);
+            res.status(400).json({ success: false, message, errors: [{ field: 'time', message }] });
             return;
         }
+
+        // Reserva el cupo del mes de la cita (atómico). Va después de validar horario y conflictos
+        // para no gastar cupo en peticiones inválidas.
+        reservation = await reserveFlowLimit(req, res, 'maxAppointmentsPerMonth', periodOfDate(dateStr) ?? '');
+        if (!reservation) return;
 
         // Create appointment
         const appointment = await Appointment.create({
             userId,
             date,
             time,
+            duration: interval,
             clientName: clientName.trim(),
             service: service.trim(),
+        });
+
+        await notifyAppointmentChange({
+            userId: userId.toString(),
+            kind: 'created',
+            appointment: toAppointmentLike(appointment),
+            excludeDeviceId: req.get('x-device-id'),
         });
 
         // Format response
@@ -182,10 +199,12 @@ export const createAppointment = async (req: Req, res: Res): Promise<void> => {
             id: appointment._id.toString(),
             date: formatDate(appointment.date),
             time: appointment.time,
+            duration: appointment.duration ?? interval,
             clientName: appointment.clientName,
             service: appointment.service,
         });
     } catch (error) {
+        await reservation?.release();
         console.error('Error creating appointment:', error);
         res.status(500).json({
             success: false,
@@ -198,8 +217,10 @@ export const createAppointment = async (req: Req, res: Res): Promise<void> => {
  * Update an appointment with validation
  */
 export const updateAppointment = async (req: Req, res: Res): Promise<void> => {
+    let reservation: Reservation | null = null;
+
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
         const { id } = req.params;
         const { date: dateStr, time, clientName, service } = req.body;
 
@@ -220,6 +241,7 @@ export const updateAppointment = async (req: Req, res: Res): Promise<void> => {
         if (dateStr !== undefined) {
             try {
                 updateData.date = parseDate(dateStr);
+                if (Number.isNaN(updateData.date.getTime())) throw new Error('Fecha inválida');
             } catch (error) {
                 res.status(400).json({
                     success: false,
@@ -284,31 +306,33 @@ export const updateAppointment = async (req: Req, res: Res): Promise<void> => {
                 return;
             }
 
-            // Check for conflicts with other appointments (exclude current appointment)
-            const startOfDay = getStartOfDay(newDate);
-            const endOfDay = getEndOfDay(newDate);
-
-            const conflictingAppointment = await Appointment.findOne({
-                userId,
-                _id: { $ne: id },
-                date: { $gte: startOfDay, $lte: endOfDay },
-                time: newTime,
-            });
-
-            if (conflictingAppointment) {
-                res.status(400).json({
-                    success: false,
-                    message: 'Ya existe una cita a las ' + newTime,
-                    errors: [{ field: 'time', message: 'Ya existe una cita a las ' + newTime }],
-                });
+            // Cruces con otras citas (la propia se excluye); conserva la duración con la que se agendó
+            const duration = existingAppointment.duration ?? (await getAppointmentInterval(userId));
+            const conflict = await findAppointmentConflict(userId, newDate, newTime, duration, id);
+            if (conflict) {
+                const message = conflictMessage(conflict.time, newTime);
+                res.status(400).json({ success: false, message, errors: [{ field: 'time', message }] });
                 return;
             }
         }
 
-        // Update appointment
-        const appointment = await Appointment.findByIdAndUpdate(id, updateData, { new: true });
+        // Cambiar la cita a otro mes consume cupo en el mes nuevo (si no, se podría evadir el límite
+        // creando en un mes libre y moviéndola). Editar dentro del mismo mes nunca consume ni bloquea.
+        if (updateData.date && periodOfStoredDate(updateData.date) !== periodOfStoredDate(existingAppointment.date)) {
+            reservation = await reserveFlowLimit(
+                req,
+                res,
+                'maxAppointmentsPerMonth',
+                periodOfStoredDate(updateData.date)
+            );
+            if (!reservation) return;
+        }
+
+        // Update appointment (filtra por userId como defensa en profundidad)
+        const appointment = await Appointment.findOneAndUpdate({ _id: id, userId }, updateData, { new: true });
 
         if (!appointment) {
+            await reservation?.release();
             res.status(404).json({
                 success: false,
                 message: 'Cita no encontrada',
@@ -316,15 +340,24 @@ export const updateAppointment = async (req: Req, res: Res): Promise<void> => {
             return;
         }
 
+        await notifyAppointmentChange({
+            userId: userId.toString(),
+            kind: 'updated',
+            appointment: toAppointmentLike(appointment),
+            excludeDeviceId: req.get('x-device-id'),
+        });
+
         // Format response
         res.json({
             id: appointment._id.toString(),
             date: formatDate(appointment.date),
             time: appointment.time,
+            duration: appointment.duration ?? (await getAppointmentInterval(userId)),
             clientName: appointment.clientName,
             service: appointment.service,
         });
     } catch (error) {
+        await reservation?.release();
         console.error('Error updating appointment:', error);
         res.status(500).json({
             success: false,
@@ -338,7 +371,7 @@ export const updateAppointment = async (req: Req, res: Res): Promise<void> => {
  */
 export const deleteAppointment = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
         const { id } = req.params;
 
         const appointment = await Appointment.findOneAndDelete({ _id: id, userId });
@@ -350,6 +383,13 @@ export const deleteAppointment = async (req: Req, res: Res): Promise<void> => {
             });
             return;
         }
+
+        await notifyAppointmentChange({
+            userId: userId.toString(),
+            kind: 'deleted',
+            appointment: toAppointmentLike(appointment),
+            excludeDeviceId: req.get('x-device-id'),
+        });
 
         res.status(204).send();
     } catch (error) {
@@ -367,7 +407,7 @@ export const deleteAppointment = async (req: Req, res: Res): Promise<void> => {
  */
 export const getAvailableSlots = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
         const { date: dateStr, duration } = req.query;
 
         // Validate date parameter

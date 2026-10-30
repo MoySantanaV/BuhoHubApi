@@ -3,6 +3,7 @@ import { formatDate, formatTime, parseDate } from '../../shared/utils/dateTimeHe
 import { calculateSale, getPeriodDateRange } from '../../shared/utils/salesCalculations.js';
 import Sale from './saleModel.js';
 import Client from '../clients/clientModel.js';
+import { getTaxConfig } from '../appConfig/appConfigService.js';
 
 /**
  * Get all sales for the authenticated user
@@ -10,7 +11,7 @@ import Client from '../clients/clientModel.js';
  */
 export const getAllSales = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
         const { dateFrom, dateTo, period } = req.query;
 
         // Build query
@@ -33,10 +34,7 @@ export const getAllSales = async (req: Req, res: Res): Promise<void> => {
         }
 
         // Execute query with client population
-        const sales = await Sale.find(query)
-            .populate('clientId', 'name')
-            .sort({ date: -1, time: -1 })
-            .lean();
+        const sales = await Sale.find(query).populate('clientId', 'name').sort({ date: -1, time: -1 }).lean();
 
         // Format response
         const formattedSales = sales.map((sale) => ({
@@ -70,7 +68,7 @@ export const getAllSales = async (req: Req, res: Res): Promise<void> => {
  */
 export const createSale = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
         const { products, hasTax = false, clientId } = req.body;
 
         // Validate products array
@@ -115,8 +113,22 @@ export const createSale = async (req: Req, res: Res): Promise<void> => {
             }
         }
 
+        // Validate client belongs to the authenticated user
+        if (clientId) {
+            const clientExists = await Client.exists({ _id: clientId, userId });
+            if (!clientExists) {
+                res.status(400).json({
+                    success: false,
+                    message: 'Cliente no encontrado',
+                    errors: [{ field: 'clientId', message: 'Cliente no encontrado' }],
+                });
+                return;
+            }
+        }
+
         // Calculate sale totals (NEVER trust client calculations)
-        const calculated = calculateSale(products, hasTax);
+        const { rate } = await getTaxConfig();
+        const calculated = calculateSale(products, hasTax, rate);
 
         // Set date and time to now
         const now = new Date();
@@ -140,16 +152,19 @@ export const createSale = async (req: Req, res: Res): Promise<void> => {
                 const productNames = calculated.products.map((p) => p.name).join(', ');
                 const noteText = `Compra de $${calculated.total.toFixed(2)} - ${productNames}`;
 
-                await Client.findByIdAndUpdate(clientId, {
-                    $push: {
-                        notes: {
-                            date: now,
-                            text: noteText,
-                            type: 'sale',
-                            saleId: sale._id,
+                await Client.findOneAndUpdate(
+                    { _id: clientId, userId },
+                    {
+                        $push: {
+                            notes: {
+                                date: now,
+                                text: noteText,
+                                type: 'sale',
+                                saleId: sale._id,
+                            },
                         },
-                    },
-                });
+                    }
+                );
             } catch (error) {
                 console.error('Error adding sale note to client:', error);
                 // Don't fail the sale if note creation fails
@@ -190,7 +205,7 @@ export const createSale = async (req: Req, res: Res): Promise<void> => {
  */
 export const getSalesStats = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
         const { period = 'today' } = req.query;
 
         // Get date range

@@ -1,3 +1,4 @@
+import { confirmCapacityOrReject } from '../subscriptions/limitsMiddleware.js';
 import { Req, Res } from '../../shared/types/express.js';
 import Product from './productModel.js';
 
@@ -7,7 +8,7 @@ import Product from './productModel.js';
  */
 export const getAllProducts = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
         const { search, sortBy = 'name', order = 'asc' } = req.query;
 
         // Build query
@@ -48,7 +49,7 @@ export const getAllProducts = async (req: Req, res: Res): Promise<void> => {
  */
 export const createProduct = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
         const { name, price } = req.body;
 
         // Validate required fields
@@ -86,6 +87,9 @@ export const createProduct = async (req: Req, res: Res): Promise<void> => {
             price,
         });
 
+        // Si otra petición simultánea ganó el último lugar del plan, este producto se descarta con un 403
+        if (!(await confirmCapacityOrReject(req, res, 'maxProducts', product._id))) return;
+
         // Format response
         res.status(201).json({
             id: product._id.toString(),
@@ -106,7 +110,7 @@ export const createProduct = async (req: Req, res: Res): Promise<void> => {
  */
 export const updateProduct = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
         const { id } = req.params;
         const { name, price } = req.body;
 
@@ -167,7 +171,7 @@ export const updateProduct = async (req: Req, res: Res): Promise<void> => {
  */
 export const deleteProduct = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
         const { id } = req.params;
 
         // Find and delete product (only if belongs to user)

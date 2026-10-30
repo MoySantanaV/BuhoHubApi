@@ -1,5 +1,6 @@
 import { Req, Res } from '../../shared/types/express.js';
 import { compareTimeStrings, isValidTimeFormat } from '../../shared/utils/dateTimeHelpers.js';
+import User from '../user/userAuthModel.js';
 import UserSchedule from './scheduleModel.js';
 
 /**
@@ -7,7 +8,7 @@ import UserSchedule from './scheduleModel.js';
  */
 export const getWorkSchedules = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
 
         const userSchedule = await UserSchedule.findOne({ userId }).lean();
 
@@ -39,10 +40,8 @@ export const getWorkSchedules = async (req: Req, res: Res): Promise<void> => {
  */
 export const saveWorkSchedules = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = (req.user as any)._id;
+        const userId = req.user._id;
         const schedules = req.body;
-
-        console.log(schedules);
 
         // Validate input
         if (!Array.isArray(schedules)) {
@@ -117,6 +116,11 @@ export const saveWorkSchedules = async (req: Req, res: Res): Promise<void> => {
             { schedules },
             { upsert: true, new: true }
         );
+
+        // Con al menos un horario, el usuario termina el paso de horarios del onboarding
+        if (schedules.length > 0) {
+            await User.updateOne({ _id: userId }, { $set: { 'onboarding.schedulesCompleted': true } });
+        }
 
         // Format response
         const formattedSchedules = userSchedule.schedules.map((schedule) => ({

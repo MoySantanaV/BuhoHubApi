@@ -1,12 +1,31 @@
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
 import { env } from '../../shared/config/envConfig.js';
 import { Next, Req, Res } from '../../shared/types/express.js';
 import User from '../user/userAuthModel.js';
 import passport from './authConfig.js';
+import { signApiToken, toAuthUser } from './authPayload.js';
 
 const router = express.Router();
 const usedTokens = new Set<string>();
+
+// Límite de intentos por IP para el canje del token de un solo uso
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 10,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    message: { message: 'Demasiados intentos. Intenta de nuevo en unos minutos.' },
+});
+
+// Solo se permite redirigir a la app (evita que el token de un solo uso se filtre a otro dominio)
+const DEFAULT_APP_REDIRECT = 'buhohub://auth-callback';
+const isAllowedAppRedirect = (uri: string): boolean => {
+    if (uri.startsWith('buhohub://')) return true;
+    // Expo Go / dev client en desarrollo
+    return env.nodeEnv !== 'production' && uri.startsWith('exp://');
+};
 
 // Middleware CORS MEJORADO
 router.use((req: Req, res: Res, next: Next) => {
@@ -36,8 +55,15 @@ router.use((req: Req, res: Res, next: Next) => {
 // Iniciar OAuth con Google
 router.get('/google', (req: Req, res: Res, next) => {
     const from = req.query.from as string;
+    const redirectUri = req.query.redirectUri as string;
+
+    if (redirectUri && !isAllowedAppRedirect(redirectUri)) {
+        return res.status(400).json({ message: 'redirectUri no permitido' });
+    }
+
     const state = JSON.stringify({
         from: from || 'web',
+        redirectUri: redirectUri || '',
         timestamp: Date.now(),
     });
 
@@ -49,7 +75,6 @@ router.get('/google', (req: Req, res: Res, next) => {
 
 // Callback de Google OAuth - VERSIÓN CORREGIDA
 router.get('/google/callback', (req: Req, res: Res, next) => {
-    console.log('🔄 Iniciando callback de Google...');
     passport.authenticate('google', { session: false }, (err, user, info) => {
         if (err) {
             console.error('❌ Error en autenticación:', err);
@@ -67,16 +92,14 @@ router.get('/google/callback', (req: Req, res: Res, next) => {
                 return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=login_failed`);
             }
 
-            console.log('✅ Login exitoso - Usuario:', user.email);
-            console.log('🔐 SessionID después de login:', req.sessionID);
-            console.log('🔐 isAuthenticated:', req.isAuthenticated());
-
             const stateString = req.query.state as string;
             let authOrigin = 'web';
 
+            let expoRedirectUri = '';
             try {
                 const state = JSON.parse(stateString);
                 authOrigin = state.from || 'web';
+                expoRedirectUri = state.redirectUri || '';
             } catch {
                 authOrigin = stateString || 'web';
             }
@@ -85,11 +108,10 @@ router.get('/google/callback', (req: Req, res: Res, next) => {
             req.session.save((saveErr) => {
                 if (saveErr) {
                     console.error('❌ Error guardando sesión:', saveErr);
-                    return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=session_error`);
+                    return res.redirect(
+                        `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=session_error`
+                    );
                 }
-
-                console.log('💾 Sesión guardada correctamente');
-                console.log('🍪 Cookie a enviar:', req.session.cookie);
 
                 if (authOrigin === 'expo') {
                     // Para Expo: generar JWT temporal
@@ -102,11 +124,14 @@ router.get('/google/callback', (req: Req, res: Res, next) => {
                         env.session.secret,
                         { expiresIn: '60s' }
                     );
-                    console.log('📱 Redirigiendo a Expo con token');
-                    res.redirect(`buhohub://auth-callback?token=${oneTimeToken}`);
+                    // El state viene del cliente: se vuelve a validar antes de enviar el token
+                    const appRedirect =
+                        expoRedirectUri && isAllowedAppRedirect(expoRedirectUri)
+                            ? expoRedirectUri
+                            : DEFAULT_APP_REDIRECT;
+                    res.redirect(`${appRedirect}?token=${oneTimeToken}`);
                 } else {
                     // Para Next.js: redirigir al dashboard
-                    console.log('🌐 Redirigiendo a Next.js dashboard');
 
                     // ENVIAR COOKIE MANUALMENTE si es necesario
                     const cookieOptions = {
@@ -129,17 +154,9 @@ router.get('/google/callback', (req: Req, res: Res, next) => {
 
 // Obtener sesión actual - MEJORADO
 router.get('/session', (req: Req, res: Res) => {
-    console.log('🔍 /session - Headers recibidos:', {
-        cookie: req.headers.cookie,
-        origin: req.headers.origin,
-    });
-    console.log('🔍 /session - SessionID:', req.sessionID);
-    console.log('🔍 /session - isAuthenticated:', req.isAuthenticated());
-    console.log('🔍 /session - User:', req.user);
-
     if (req.isAuthenticated() && req.user) {
         return res.json({
-            user: req.user,
+            user: toAuthUser(req.user),
             authenticated: true,
             sessionId: req.sessionID,
         });
@@ -154,7 +171,7 @@ router.get('/session', (req: Req, res: Res) => {
 });
 
 // Intercambiar token de un solo uso por datos de usuario (para Expo)
-router.post('/exchange-token', async (req: Req, res: Res) => {
+router.post('/exchange-token', authLimiter, async (req: Req, res: Res) => {
     const { token } = req.body;
     if (!token) {
         return res.status(400).json({ error: 'Token requerido' });
@@ -178,27 +195,9 @@ router.post('/exchange-token', async (req: Req, res: Res) => {
             return res.status(404).json({ error: 'Usuario no encontrado' });
         }
 
-        // Generar JWT de larga duración para peticiones API (7 días)
-        const apiToken = jwt.sign(
-            {
-                userId: user._id,
-                email: user.email,
-                type: 'api-access',
-            },
-            env.session.secret,
-            { expiresIn: '7d' }
-        );
-
-        console.log('✅ JWT generado para Expo - Expira en 7 días');
-
         return res.json({
-            user: {
-                id: user._id,
-                email: user.email,
-                name: user.name,
-                image: user.image,
-            },
-            token: apiToken, // ← Token JWT para las peticiones API
+            user: toAuthUser(user),
+            token: signApiToken(user), // ← Token JWT para las peticiones API
             authenticated: true,
         });
     } catch (error) {
@@ -208,8 +207,6 @@ router.post('/exchange-token', async (req: Req, res: Res) => {
 
 // Cerrar sesión - MEJORADO
 router.post('/logout', (req: Req, res: Res) => {
-    console.log('🚪 Cerrando sesión para usuario:', req.user);
-
     req.logout((err) => {
         if (err) {
             console.error('❌ Error en logout:', err);
@@ -229,7 +226,6 @@ router.post('/logout', (req: Req, res: Res) => {
                 sameSite: 'lax',
             });
 
-            console.log('✅ Sesión cerrada y cookie limpiada');
             res.json({ success: true });
         });
     });

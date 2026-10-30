@@ -1,6 +1,6 @@
 import { Document, Schema, model } from 'mongoose';
 
-export type ConfigKey = 'minVersion' | 'forceUpdate' | 'maintenanceMode';
+export type ConfigKey = 'minVersion' | 'forceUpdate' | 'maintenanceMode' | 'tax' | 'plans' | 'tiers' | 'limitsEnforced';
 
 export interface IAppConfig extends Document {
     key: ConfigKey;
@@ -14,7 +14,7 @@ const AppConfigSchema = new Schema<IAppConfig>(
             type: String,
             required: true,
             unique: true,
-            enum: ['minVersion', 'forceUpdate', 'maintenanceMode'],
+            enum: ['minVersion', 'forceUpdate', 'maintenanceMode', 'tax', 'plans', 'tiers', 'limitsEnforced'],
             index: true, // Índice único en key para búsquedas rápidas
         },
         value: {

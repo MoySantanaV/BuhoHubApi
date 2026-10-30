@@ -1,8 +1,10 @@
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
-import User, { IUser } from '../user/userAuthModel.js';
-import UserProfile from '../user/userModel.js';
+import User from '../user/userAuthModel.js';
+import { ensureUserProfile } from '../user/userProfileService.js';
 import { env } from '../../shared/config/envConfig.js';
+import { emailQuery, normalizeEmail } from '../../shared/utils/identity.js';
+import { restoreUsageFromHistory } from '../user/accountHistoryService.js';
 
 // Serializar usuario (guardar en sesión)
 passport.serializeUser((user: any, done) => {
@@ -29,36 +31,37 @@ passport.deserializeUser(async (id: string, done) => {
         },
         async (accessToken, refreshToken, profile, done) => {
             try {
-                // Buscar usuario existente por googleId
+                const googleEmail = profile.emails?.[0]?.value;
+                const emailNormalized = googleEmail ? normalizeEmail(googleEmail) : undefined;
+
+                // 1. Cuenta ya enlazada con este Google
                 let user = await User.findOne({ googleId: profile.id });
 
+                // 2. Mismo correo (o alias de Gmail) que una cuenta anterior: se enlaza a esa cuenta
+                if (!user && emailNormalized) {
+                    user = await User.findOne(emailQuery(googleEmail!));
+                    if (user) {
+                        user.googleId = profile.id;
+                        user.image = user.image || profile.photos?.[0]?.value;
+                        await user.save();
+                    }
+                }
+
+                // 3. Cuenta nueva: el correo llega verificado por Google; falta perfil y horarios
                 if (!user) {
-                    // Si no existe, crear nuevo usuario
                     user = await User.create({
                         googleId: profile.id,
-                        email: profile.emails?.[0]?.value,
+                        email: googleEmail,
                         name: profile.displayName,
                         image: profile.photos?.[0]?.value,
+                        onboarding: { profileCompleted: false, schedulesCompleted: false },
                     });
 
-                    // Crear perfil de usuario con plan free por defecto
-                    await UserProfile.create({
-                        userId: user._id,
-                        email: user.email,
-                        role: 'free',
-                        subscription: {
-                            status: 'inactive',
-                            planId: 'free',
-                            cancelAtPeriodEnd: false,
-                        },
-                        limits: {
-                            maxClients: 10,
-                            maxAppointments: 20,
-                            maxServices: 3,
-                        },
-                    });
-
-                    console.log('✅ Nuevo usuario creado:', user.email);
+                    // Perfil de usuario con plan Gratis por defecto
+                    await Promise.all([
+                        ensureUserProfile(user),
+                        restoreUsageFromHistory(user._id, { emailNormalized }),
+                    ]);
                 }
 
                 return done(null, user);
