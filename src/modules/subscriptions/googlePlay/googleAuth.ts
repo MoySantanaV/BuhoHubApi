@@ -59,6 +59,9 @@ const getAccount = (): ServiceAccount | null => {
 /** ¿Está configurada la cuenta de servicio? Sin ella no se pueden validar compras. */
 export const isGooglePlayConfigured = (): boolean => getAccount() !== null;
 
+/** Correo de la cuenta de servicio en uso (dato público) para diagnosticar permisos en los logs. */
+export const getServiceAccountEmail = (): string => getAccount()?.client_email ?? 'sin configurar';
+
 export const resetGoogleTokenCache = (): void => {
     cached = null;
 };

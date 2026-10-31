@@ -1,5 +1,5 @@
 import { env } from '../../../shared/config/envConfig.js';
-import { getAccessToken, resetGoogleTokenCache } from './googleAuth.js';
+import { getAccessToken, getServiceAccountEmail, resetGoogleTokenCache } from './googleAuth.js';
 
 const BASE_URL = 'https://androidpublisher.googleapis.com/androidpublisher/v3/applications';
 const MAX_ATTEMPTS = 3;
@@ -59,7 +59,7 @@ export const getSubscription = async (purchaseToken: string): Promise<GoogleSubs
 
     if (!response.ok) {
         throw new GooglePlayError(
-            `Google Play respondió ${response.status}: ${await response.text()}`,
+            `Google Play respondió ${response.status} (cuenta de servicio ${getServiceAccountEmail()}): ${await response.text()}`,
             response.status
         );
     }
@@ -75,7 +75,7 @@ export const acknowledgeSubscription = async (productId: string, purchaseToken: 
 
     if (!response.ok) {
         throw new GooglePlayError(
-            `No se pudo confirmar la compra (${response.status}): ${await response.text()}`,
+            `No se pudo confirmar la compra (${response.status}, cuenta de servicio ${getServiceAccountEmail()}): ${await response.text()}`,
             response.status
         );
     }
