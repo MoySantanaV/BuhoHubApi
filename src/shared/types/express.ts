@@ -14,6 +14,8 @@ declare global {
             userProfile?: IUserProfile;
             // Plan efectivo (tier, límites y funciones) calculado por `authenticate` en cada petición
             effectivePlan?: EffectivePlan;
+            // Negocio de la cuenta (lo pone `authenticate`; hoy igual al id del usuario). Ver shared/utils/tenant.ts
+            businessId?: IUser['_id'];
         }
     }
 }

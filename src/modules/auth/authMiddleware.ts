@@ -49,6 +49,9 @@ const authenticate = async (req: Req, res: Res, next: Next): Promise<void> => {
 
         // Adjuntar datos a la request
         req.user = user; // Asegurar que req.user esté disponible
+        // Negocio al que pertenece la cuenta. Hoy cada cuenta es su propio negocio; cuando haya equipos
+        // se resolverá desde la membresía (ver shared/utils/tenant.ts).
+        req.businessId = user._id;
         req.userProfile = userProfile;
         req.effectivePlan = resolveEffectivePlan(userProfile, tiers);
 

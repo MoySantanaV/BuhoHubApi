@@ -10,6 +10,8 @@ export interface ISaleProduct {
 export interface ISale extends Document {
     _id: Types.ObjectId;
     userId: Schema.Types.ObjectId;
+    /** Negocio dueño del dato; hoy igual al userId (ver shared/utils/tenant.ts) */
+    businessId?: Schema.Types.ObjectId;
     clientId?: Schema.Types.ObjectId;
     date: Date;
     time: string; // HH:mm format
@@ -56,6 +58,10 @@ const SaleSchema = new Schema<ISale>(
             ref: 'User',
             required: true,
             index: true,
+        },
+        businessId: {
+            type: Schema.Types.ObjectId,
+            ref: 'User',
         },
         clientId: {
             type: Schema.Types.ObjectId,
@@ -118,6 +124,12 @@ const SaleSchema = new Schema<ISale>(
 
 // Compound index for efficient date range queries
 SaleSchema.index({ userId: 1, date: 1 });
+
+// Ninguna vía de creación deja el negocio vacío: se completa con el userId (cada cuenta es su negocio hoy)
+SaleSchema.pre('validate', function (next) {
+    if (!this.businessId) this.businessId = this.userId;
+    next();
+});
 
 const Sale = model<ISale>('Sale', SaleSchema);
 

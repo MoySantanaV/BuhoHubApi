@@ -1,4 +1,5 @@
 import { Req, Res } from '../../shared/types/express.js';
+import { businessScope } from '../../shared/utils/tenant.js';
 import Client from '../clients/clientModel.js';
 import Sale from '../sales/saleModel.js';
 import { businessDayStart, saleBusinessDate } from '../sales/saleDates.js';
@@ -14,7 +15,6 @@ const MAX_GOAL = 1_000_000_000;
  */
 export const getOverview = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = req.user._id;
         const now = new Date();
         const { month = saleBusinessDate(now).date.slice(0, 7) } = req.query;
 
@@ -31,10 +31,14 @@ export const getOverview = async (req: Req, res: Res): Promise<void> => {
         const rangeEnd = businessDayStart(`${nextMonthKey(month)}-01`);
 
         const [monthSales, clientSales] = await Promise.all([
-            Sale.find({ userId, canceledAt: { $exists: false }, date: { $gte: rangeStart, $lt: rangeEnd } })
+            Sale.find({
+                ...businessScope(req),
+                canceledAt: { $exists: false },
+                date: { $gte: rangeStart, $lt: rangeEnd },
+            })
                 .select('date total subtotal products.name products.subtotal')
                 .lean(),
-            Sale.find({ userId, canceledAt: { $exists: false }, clientId: { $exists: true, $ne: null } })
+            Sale.find({ ...businessScope(req), canceledAt: { $exists: false }, clientId: { $exists: true, $ne: null } })
                 .select('date total clientId')
                 .lean(),
         ]);
@@ -50,7 +54,10 @@ export const getOverview = async (req: Req, res: Res): Promise<void> => {
         });
 
         const clients = overview.reactivation.length
-            ? await Client.find({ _id: { $in: overview.reactivation.map((item) => item.clientId) }, userId })
+            ? await Client.find({
+                  _id: { $in: overview.reactivation.map((item) => item.clientId) },
+                  ...businessScope(req),
+              })
                   .select('name phone')
                   .lean()
             : [];

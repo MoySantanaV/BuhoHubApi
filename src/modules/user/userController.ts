@@ -2,6 +2,7 @@ import { Req, Res } from '../../shared/types/express.js';
 import UserProfile, { IUserProfile } from './userModel.js';
 import { IUser } from './userAuthModel.js';
 import User from './userAuthModel.js';
+import { businessScopeOf } from '../../shared/utils/tenant.js';
 import Client from '../clients/clientModel.js';
 import Product from '../products/productModel.js';
 import Sale from '../sales/saleModel.js';
@@ -103,10 +104,10 @@ export const deleteAccount = async (req: Req, res: Res): Promise<void> => {
 
         // Borra en paralelo todos los datos de negocio del usuario
         await Promise.all([
-            Client.deleteMany({ userId }),
-            Product.deleteMany({ userId }),
-            Sale.deleteMany({ userId }),
-            Appointment.deleteMany({ userId }),
+            Client.deleteMany(businessScopeOf(userId)),
+            Product.deleteMany(businessScopeOf(userId)),
+            Sale.deleteMany(businessScopeOf(userId)),
+            Appointment.deleteMany(businessScopeOf(userId)),
             AppointmentInterval.deleteMany({ userId }),
             NonWorkingDay.deleteMany({ userId }),
             BlockedTimeSlot.deleteMany({ userId }),

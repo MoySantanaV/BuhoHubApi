@@ -3,6 +3,7 @@ import Appointment from '../appointments/appointmentModel.js';
 import Client from '../clients/clientModel.js';
 import Product from '../products/productModel.js';
 import { formatDate } from '../../shared/utils/dateTimeHelpers.js';
+import { businessScopeOf } from '../../shared/utils/tenant.js';
 import type { EffectivePlan } from './entitlements.js';
 import Usage from './usageModel.js';
 
@@ -23,15 +24,15 @@ interface CapacityResource {
 
 const CAPACITY_RESOURCES: Record<CapacityLimitKey, CapacityResource> = {
     maxClients: {
-        count: (userId) => Client.countDocuments({ userId }),
+        count: (userId) => Client.countDocuments(businessScopeOf(userId)),
         remove: async (userId, id) => {
-            await Client.deleteOne({ _id: id, userId });
+            await Client.deleteOne({ _id: id, ...businessScopeOf(userId) });
         },
     },
     maxProducts: {
-        count: (userId) => Product.countDocuments({ userId }),
+        count: (userId) => Product.countDocuments(businessScopeOf(userId)),
         remove: async (userId, id) => {
-            await Product.deleteOne({ _id: id, userId });
+            await Product.deleteOne({ _id: id, ...businessScopeOf(userId) });
         },
     },
 };
@@ -91,7 +92,7 @@ const periodRange = (period: string): { start: Date; end: Date } => {
 
 const countLiveAppointments = (userId: Types.ObjectId, period: string): Promise<number> => {
     const { start, end } = periodRange(period);
-    return Appointment.countDocuments({ userId, date: { $gte: start, $lt: end } });
+    return Appointment.countDocuments({ ...businessScopeOf(userId), date: { $gte: start, $lt: end } });
 };
 
 const isDuplicateKeyError = (error: unknown): boolean => (error as { code?: number }).code === 11000;

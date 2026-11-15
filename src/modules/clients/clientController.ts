@@ -2,6 +2,7 @@ import { confirmCapacityOrReject } from '../subscriptions/limitsMiddleware.js';
 import { Req, Res } from '../../shared/types/express.js';
 import { normalizePhone } from '../../shared/utils/identity.js';
 import { formatDate, formatDateTime, parseDate, parseDateOrDateTime } from '../../shared/utils/dateTimeHelpers.js';
+import { businessScope } from '../../shared/utils/tenant.js';
 import Appointment from '../appointments/appointmentModel.js';
 import Client from './clientModel.js';
 import { validateClientInput } from './clientValidation.js';
@@ -12,11 +13,10 @@ import { validateClientInput } from './clientValidation.js';
  */
 export const getAllClients = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = req.user._id;
         const { search, limit, offset } = req.query;
 
         // Build query
-        const query: any = { userId };
+        const query: any = { ...businessScope(req) };
 
         // Add search filter if provided (search in name, email, phone)
         if (search) {
@@ -104,6 +104,7 @@ export const createClient = async (req: Req, res: Res): Promise<void> => {
         // Create client
         const client = await Client.create({
             userId,
+            businessId: req.businessId,
             name: name.trim(),
             birthday: birthdayDate,
             email: email.trim(),
@@ -143,7 +144,6 @@ export const createClient = async (req: Req, res: Res): Promise<void> => {
  */
 export const updateClient = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = req.user._id;
         const { id } = req.params;
         const { name, birthday, email, phone, notes } = req.body;
 
@@ -196,7 +196,7 @@ export const updateClient = async (req: Req, res: Res): Promise<void> => {
         }
 
         // Find and update client (only if belongs to user)
-        const client = await Client.findOneAndUpdate({ _id: id, userId }, updateData, { new: true });
+        const client = await Client.findOneAndUpdate({ _id: id, ...businessScope(req) }, updateData, { new: true });
 
         if (!client) {
             res.status(404).json({
@@ -208,7 +208,7 @@ export const updateClient = async (req: Req, res: Res): Promise<void> => {
 
         // Sus citas guardan el nombre: si lo cambió, se actualiza en todas
         if (updateData.name !== undefined) {
-            await Appointment.updateMany({ userId, clientId: client._id }, { clientName: client.name });
+            await Appointment.updateMany({ ...businessScope(req), clientId: client._id }, { clientName: client.name });
         }
 
         // Format response
@@ -240,11 +240,10 @@ export const updateClient = async (req: Req, res: Res): Promise<void> => {
  */
 export const deleteClient = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = req.user._id;
         const { id } = req.params;
 
         // Find and delete client (only if belongs to user)
-        const client = await Client.findOneAndDelete({ _id: id, userId });
+        const client = await Client.findOneAndDelete({ _id: id, ...businessScope(req) });
 
         if (!client) {
             res.status(404).json({
@@ -255,7 +254,7 @@ export const deleteClient = async (req: Req, res: Res): Promise<void> => {
         }
 
         // Sus citas se conservan con el nombre, pero ya sin expediente
-        await Appointment.updateMany({ userId, clientId: client._id }, { $unset: { clientId: 1 } });
+        await Appointment.updateMany({ ...businessScope(req), clientId: client._id }, { $unset: { clientId: 1 } });
 
         res.status(204).send();
     } catch (error) {

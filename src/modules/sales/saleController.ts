@@ -3,6 +3,7 @@ import { Req, Res } from '../../shared/types/express.js';
 import { calculateSale } from '../../shared/utils/salesCalculations.js';
 import { businessPeriodKeys, saleBusinessDate, saleDateFilter, type SalePeriod } from './saleDates.js';
 import Sale from './saleModel.js';
+import { businessScope } from '../../shared/utils/tenant.js';
 import Client from '../clients/clientModel.js';
 import { getTaxConfig } from '../appConfig/appConfigService.js';
 
@@ -12,11 +13,10 @@ import { getTaxConfig } from '../appConfig/appConfigService.js';
  */
 export const getAllSales = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = req.user._id;
         const { dateFrom, dateTo, period } = req.query;
 
         // Build query (los días se interpretan en hora de México)
-        const query: any = { userId };
+        const query: any = { ...businessScope(req) };
 
         // Add date filters
         if (period) {
@@ -120,7 +120,7 @@ export const createSale = async (req: Req, res: Res): Promise<void> => {
 
         // Validate client belongs to the authenticated user
         if (clientId) {
-            const clientExists = await Client.exists({ _id: clientId, userId });
+            const clientExists = await Client.exists({ _id: clientId, ...businessScope(req) });
             if (!clientExists) {
                 res.status(400).json({
                     success: false,
@@ -141,6 +141,7 @@ export const createSale = async (req: Req, res: Res): Promise<void> => {
         // Create sale
         const sale = await Sale.create({
             userId,
+            businessId: req.businessId,
             clientId: clientId || undefined,
             date: now,
             time: saleBusinessDate(now).time,
@@ -158,7 +159,7 @@ export const createSale = async (req: Req, res: Res): Promise<void> => {
                 const noteText = `Compra de $${calculated.total.toFixed(2)} - ${productNames}`;
 
                 await Client.findOneAndUpdate(
-                    { _id: clientId, userId },
+                    { _id: clientId, ...businessScope(req) },
                     {
                         $push: {
                             notes: {
@@ -209,7 +210,6 @@ export const createSale = async (req: Req, res: Res): Promise<void> => {
  */
 export const getSalesStats = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = req.user._id;
         const { period = 'today' } = req.query;
 
         const periodName: SalePeriod = period === 'week' || period === 'month' ? period : 'today';
@@ -219,7 +219,7 @@ export const getSalesStats = async (req: Req, res: Res): Promise<void> => {
         const result = await Sale.aggregate([
             {
                 $match: {
-                    userId,
+                    ...businessScope(req),
                     date: saleDateFilter(from, to),
                     canceledAt: { $exists: false },
                 },
@@ -267,7 +267,6 @@ export const getSalesStats = async (req: Req, res: Res): Promise<void> => {
  */
 export const cancelSale = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = req.user._id;
         const { id } = req.params;
         const { reason } = req.body ?? {};
 
@@ -286,7 +285,7 @@ export const cancelSale = async (req: Req, res: Res): Promise<void> => {
         }
 
         // Solo se cancela una vez; si ya estaba cancelada se responde igual sin tocar nada
-        const sale = await Sale.findOne({ _id: id, userId });
+        const sale = await Sale.findOne({ _id: id, ...businessScope(req) });
         if (!sale) {
             res.status(404).json({ success: false, message: 'Venta no encontrada' });
             return;
@@ -301,7 +300,10 @@ export const cancelSale = async (req: Req, res: Res): Promise<void> => {
             // La nota de solo lectura del cliente ya no describe una compra vigente
             if (sale.clientId) {
                 try {
-                    await Client.updateOne({ _id: sale.clientId, userId }, { $pull: { notes: { saleId: sale._id } } });
+                    await Client.updateOne(
+                        { _id: sale.clientId, ...businessScope(req) },
+                        { $pull: { notes: { saleId: sale._id } } }
+                    );
                 } catch (error) {
                     console.error('Error quitando la nota de venta del cliente:', error);
                 }

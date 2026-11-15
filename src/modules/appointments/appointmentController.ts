@@ -20,6 +20,7 @@ import {
 import { doTimeRangesOverlap, generateTimeSlots } from '../../shared/utils/timeSlotGenerator.js';
 import BlockedTimeSlot from '../blockedTimeSlots/blockedTimeSlotModel.js';
 import { notifyAppointmentChange, toAppointmentLike } from '../notifications/notificationService.js';
+import { businessScope } from '../../shared/utils/tenant.js';
 import Client from '../clients/clientModel.js';
 import Appointment from './appointmentModel.js';
 
@@ -51,9 +52,11 @@ const formatAppointment = (
  * Nombre del cliente al que se liga una cita. Debe ser un cliente del mismo usuario;
  * devuelve null si el id no es válido o es de otra cuenta.
  */
-const findOwnClientName = async (userId: unknown, clientId: unknown): Promise<string | null> => {
+const findOwnClientName = async (req: Req, clientId: unknown): Promise<string | null> => {
     if (typeof clientId !== 'string' || !Types.ObjectId.isValid(clientId)) return null;
-    const client = await Client.findOne({ _id: clientId, userId }).select('name').lean();
+    const client = await Client.findOne({ _id: clientId, ...businessScope(req) })
+        .select('name')
+        .lean();
     return client?.name ?? null;
 };
 
@@ -74,7 +77,7 @@ export const getAllAppointments = async (req: Req, res: Res): Promise<void> => {
         const { date, dateFrom, dateTo } = req.query;
 
         // Build query
-        const query: any = { userId };
+        const query: any = { ...businessScope(req) };
 
         // Add date filters
         if (date) {
@@ -128,7 +131,7 @@ export const createAppointment = async (req: Req, res: Res): Promise<void> => {
 
         // Ligada a un expediente: el nombre sale del cliente (no se confía en el que mande la app)
         if (clientId) {
-            const linkedName = await findOwnClientName(userId, clientId);
+            const linkedName = await findOwnClientName(req, clientId);
             if (linkedName === null) {
                 invalidClient(res);
                 return;
@@ -226,6 +229,7 @@ export const createAppointment = async (req: Req, res: Res): Promise<void> => {
         // Create appointment
         const appointment = await Appointment.create({
             userId,
+            businessId: req.businessId,
             date,
             time,
             duration: interval,
@@ -266,7 +270,7 @@ export const updateAppointment = async (req: Req, res: Res): Promise<void> => {
         let { clientName } = req.body;
 
         // Find existing appointment
-        const existingAppointment = await Appointment.findOne({ _id: id, userId });
+        const existingAppointment = await Appointment.findOne({ _id: id, ...businessScope(req) });
         if (!existingAppointment) {
             res.status(404).json({
                 success: false,
@@ -308,7 +312,7 @@ export const updateAppointment = async (req: Req, res: Res): Promise<void> => {
 
         // Ligar la cita a un expediente (su nombre manda) o desligarla (clientId vacío)
         if (clientId) {
-            const linkedName = await findOwnClientName(userId, clientId);
+            const linkedName = await findOwnClientName(req, clientId);
             if (linkedName === null) {
                 invalidClient(res);
                 return;
@@ -382,8 +386,10 @@ export const updateAppointment = async (req: Req, res: Res): Promise<void> => {
             if (!reservation) return;
         }
 
-        // Update appointment (filtra por userId como defensa en profundidad)
-        const appointment = await Appointment.findOneAndUpdate({ _id: id, userId }, updateData, { new: true });
+        // Update appointment (filtra por negocio como defensa en profundidad)
+        const appointment = await Appointment.findOneAndUpdate({ _id: id, ...businessScope(req) }, updateData, {
+            new: true,
+        });
 
         if (!appointment) {
             await reservation?.release();
@@ -421,7 +427,7 @@ export const deleteAppointment = async (req: Req, res: Res): Promise<void> => {
         const userId = req.user._id;
         const { id } = req.params;
 
-        const appointment = await Appointment.findOneAndDelete({ _id: id, userId });
+        const appointment = await Appointment.findOneAndDelete({ _id: id, ...businessScope(req) });
 
         if (!appointment) {
             res.status(404).json({

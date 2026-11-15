@@ -1,5 +1,6 @@
 import { confirmCapacityOrReject } from '../subscriptions/limitsMiddleware.js';
 import { Req, Res } from '../../shared/types/express.js';
+import { businessScope } from '../../shared/utils/tenant.js';
 import Product from './productModel.js';
 
 /**
@@ -8,11 +9,10 @@ import Product from './productModel.js';
  */
 export const getAllProducts = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = req.user._id;
         const { search, sortBy = 'name', order = 'asc' } = req.query;
 
         // Build query
-        const query: any = { userId };
+        const query: any = { ...businessScope(req) };
 
         // Add search filter if provided
         if (search) {
@@ -83,6 +83,7 @@ export const createProduct = async (req: Req, res: Res): Promise<void> => {
         // Create product
         const product = await Product.create({
             userId,
+            businessId: req.businessId,
             name: name.trim(),
             price,
         });
@@ -110,7 +111,6 @@ export const createProduct = async (req: Req, res: Res): Promise<void> => {
  */
 export const updateProduct = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = req.user._id;
         const { id } = req.params;
         const { name, price } = req.body;
 
@@ -135,7 +135,7 @@ export const updateProduct = async (req: Req, res: Res): Promise<void> => {
 
         // Find and update product (only if belongs to user)
         const product = await Product.findOneAndUpdate(
-            { _id: id, userId },
+            { _id: id, ...businessScope(req) },
             {
                 ...(name !== undefined && { name: name.trim() }),
                 ...(price !== undefined && { price }),
@@ -171,11 +171,10 @@ export const updateProduct = async (req: Req, res: Res): Promise<void> => {
  */
 export const deleteProduct = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = req.user._id;
         const { id } = req.params;
 
         // Find and delete product (only if belongs to user)
-        const product = await Product.findOneAndDelete({ _id: id, userId });
+        const product = await Product.findOneAndDelete({ _id: id, ...businessScope(req) });
 
         if (!product) {
             res.status(404).json({
