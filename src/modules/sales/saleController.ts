@@ -1,6 +1,6 @@
 import { Req, Res } from '../../shared/types/express.js';
-import { formatDate, formatTime, parseDate } from '../../shared/utils/dateTimeHelpers.js';
-import { calculateSale, getPeriodDateRange } from '../../shared/utils/salesCalculations.js';
+import { calculateSale } from '../../shared/utils/salesCalculations.js';
+import { businessPeriodKeys, saleBusinessDate, saleDateFilter, type SalePeriod } from './saleDates.js';
 import Sale from './saleModel.js';
 import Client from '../clients/clientModel.js';
 import { getTaxConfig } from '../appConfig/appConfigService.js';
@@ -14,23 +14,26 @@ export const getAllSales = async (req: Req, res: Res): Promise<void> => {
         const userId = req.user._id;
         const { dateFrom, dateTo, period } = req.query;
 
-        // Build query
+        // Build query (los días se interpretan en hora de México)
         const query: any = { userId };
 
         // Add date filters
         if (period) {
-            const { start, end } = getPeriodDateRange(period as 'today' | 'week' | 'month');
-            query.date = { $gte: start, $lte: end };
+            const { from, to } = businessPeriodKeys(period as SalePeriod);
+            query.date = saleDateFilter(from, to);
         } else if (dateFrom || dateTo) {
-            query.date = {};
-            if (dateFrom) {
-                const fromDate = parseDate(dateFrom as string);
-                query.date.$gte = fromDate;
+            const dayKey = /^\d{4}-\d{2}-\d{2}$/;
+            const from = dateFrom as string | undefined;
+            const to = dateTo as string | undefined;
+            if ((from && !dayKey.test(from)) || (to && !dayKey.test(to))) {
+                res.status(400).json({
+                    success: false,
+                    message: 'Fechas inválidas',
+                    errors: [{ field: 'dateFrom', message: 'Usa el formato YYYY-MM-DD' }],
+                });
+                return;
             }
-            if (dateTo) {
-                const toDate = parseDate(dateTo as string);
-                query.date.$lte = toDate;
-            }
+            query.date = saleDateFilter(from, to);
         }
 
         // Execute query with client population
@@ -41,8 +44,7 @@ export const getAllSales = async (req: Req, res: Res): Promise<void> => {
             id: sale._id.toString(),
             clientId: sale.clientId ? (sale.clientId as any)._id.toString() : undefined,
             clientName: sale.clientId ? (sale.clientId as any).name : undefined,
-            date: formatDate(sale.date),
-            time: sale.time,
+            ...saleBusinessDate(sale.date),
             products: sale.products.map((product) => ({
                 name: product.name,
                 price: product.price,
@@ -130,7 +132,7 @@ export const createSale = async (req: Req, res: Res): Promise<void> => {
         const { rate } = await getTaxConfig();
         const calculated = calculateSale(products, hasTax, rate);
 
-        // Set date and time to now
+        // La venta guarda el instante real; el día y la hora de México se calculan al leerla
         const now = new Date();
 
         // Create sale
@@ -138,7 +140,7 @@ export const createSale = async (req: Req, res: Res): Promise<void> => {
             userId,
             clientId: clientId || undefined,
             date: now,
-            time: formatTime(now),
+            time: saleBusinessDate(now).time,
             products: calculated.products,
             hasTax,
             subtotal: calculated.subtotal,
@@ -179,8 +181,7 @@ export const createSale = async (req: Req, res: Res): Promise<void> => {
             id: sale._id.toString(),
             clientId: sale.clientId ? (sale.clientId as any)._id.toString() : undefined,
             clientName: sale.clientId ? (sale.clientId as any).name : undefined,
-            date: formatDate(sale.date),
-            time: sale.time,
+            ...saleBusinessDate(sale.date),
             products: sale.products.map((product) => ({
                 name: product.name,
                 price: product.price,
@@ -208,15 +209,15 @@ export const getSalesStats = async (req: Req, res: Res): Promise<void> => {
         const userId = req.user._id;
         const { period = 'today' } = req.query;
 
-        // Get date range
-        const { start, end, periodName } = getPeriodDateRange(period as 'today' | 'week' | 'month');
+        const periodName: SalePeriod = period === 'week' || period === 'month' ? period : 'today';
+        const { from, to } = businessPeriodKeys(periodName);
 
         // Aggregate sales
         const result = await Sale.aggregate([
             {
                 $match: {
                     userId,
-                    date: { $gte: start, $lte: end },
+                    date: saleDateFilter(from, to),
                 },
             },
             {
@@ -236,15 +237,15 @@ export const getSalesStats = async (req: Req, res: Res): Promise<void> => {
                 totalSales: stats.totalSales,
                 totalRevenue: stats.totalRevenue,
                 period: 'today',
-                date: formatDate(start),
+                date: from,
             });
         } else {
             res.json({
                 totalSales: stats.totalSales,
                 totalRevenue: stats.totalRevenue,
                 period: periodName,
-                dateFrom: formatDate(start),
-                dateTo: formatDate(end),
+                dateFrom: from,
+                dateTo: to,
             });
         }
     } catch (error) {
