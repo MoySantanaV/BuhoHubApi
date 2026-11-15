@@ -7,6 +7,8 @@ export interface IAppointment extends Document {
     time: string; // HH:mm format
     /** Minutos que dura; se guarda al agendar para que cambiar el intervalo no altere citas hechas */
     duration?: number;
+    /** Expediente del cliente; las citas escritas solo con nombre no lo tienen */
+    clientId?: Types.ObjectId;
     clientName: string;
     service: string;
     createdAt: Date;
@@ -35,6 +37,11 @@ const AppointmentSchema = new Schema<IAppointment>(
             type: Number,
             min: 5,
             max: 480,
+        },
+        clientId: {
+            type: Schema.Types.ObjectId,
+            ref: 'Client',
+            required: false,
         },
         clientName: {
             type: String,
