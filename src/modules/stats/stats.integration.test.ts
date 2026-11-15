@@ -133,6 +133,46 @@ describe('estadísticas: API completa', () => {
         assert.deepEqual(body.reactivation, []);
     });
 
+    it('una venta cancelada se conserva pero no cuenta en estadísticas ni en totales', async () => {
+        const user = await makeUser('cancelar@test.com');
+        const other = await makeUser('cancelar-otro@test.com');
+        const client = await m.Client.create({ userId: user.id, name: 'Ana' });
+        const keep = await addSale(user.id, '2026-11-03T18:00:00.000Z', 600);
+        const sale = await addSale(user.id, '2026-11-04T18:00:00.000Z', 400, 'Corte', client.id);
+        await m.Client.updateOne(
+            { _id: client._id },
+            { $push: { notes: { date: new Date(), text: 'Compra', type: 'sale', saleId: sale._id } } }
+        );
+
+        assert.equal((await call(other.token, 'PUT', `/sales/${sale.id}/cancel`)).status, 404);
+        assert.equal((await call(user.token, 'PUT', '/sales/no-es-un-id/cancel')).status, 404);
+        assert.equal(
+            (await call(user.token, 'PUT', `/sales/${sale.id}/cancel`, { reason: 'x'.repeat(201) })).status,
+            400
+        );
+
+        const canceled = await call(user.token, 'PUT', `/sales/${sale.id}/cancel`, { reason: '  Cobré doble ' });
+        assert.equal(canceled.status, 200);
+        assert.equal(canceled.body.cancelReason, 'Cobré doble');
+        // Cancelar otra vez no cambia nada
+        assert.equal(
+            (await call(user.token, 'PUT', `/sales/${sale.id}/cancel`)).body.canceledAt,
+            canceled.body.canceledAt
+        );
+
+        const { body: overview } = await call(user.token, 'GET', '/stats/overview?month=2026-11');
+        assert.equal(overview.summary.revenue, 600);
+        assert.equal(overview.summary.salesCount, 1);
+
+        const list = (await call(user.token, 'GET', '/sales')).body as Json[];
+        assert.equal(list.length, 2);
+        assert.ok(list.find((item) => item.id === sale.id)?.canceledAt);
+        assert.equal(list.find((item) => item.id === keep.id)?.canceledAt, undefined);
+
+        const updatedClient = await m.Client.findById(client._id).lean();
+        assert.equal(updatedClient.notes.length, 0);
+    });
+
     it('guarda, devuelve y quita la meta', async () => {
         const user = await makeUser('meta@test.com');
 

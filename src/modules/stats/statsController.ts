@@ -31,10 +31,10 @@ export const getOverview = async (req: Req, res: Res): Promise<void> => {
         const rangeEnd = businessDayStart(`${nextMonthKey(month)}-01`);
 
         const [monthSales, clientSales] = await Promise.all([
-            Sale.find({ userId, date: { $gte: rangeStart, $lt: rangeEnd } })
+            Sale.find({ userId, canceledAt: { $exists: false }, date: { $gte: rangeStart, $lt: rangeEnd } })
                 .select('date total subtotal products.name products.subtotal')
                 .lean(),
-            Sale.find({ userId, clientId: { $exists: true, $ne: null } })
+            Sale.find({ userId, canceledAt: { $exists: false }, clientId: { $exists: true, $ne: null } })
                 .select('date total clientId')
                 .lean(),
         ]);

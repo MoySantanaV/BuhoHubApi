@@ -18,6 +18,8 @@ export interface ISale extends Document {
     subtotal: number;
     tax: number;
     total: number;
+    canceledAt?: Date; // una venta cancelada se conserva pero no cuenta en totales ni estadísticas
+    cancelReason?: string;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -95,6 +97,16 @@ const SaleSchema = new Schema<ISale>(
         total: {
             type: Number,
             required: true,
+        },
+        canceledAt: {
+            type: Date,
+            required: false,
+        },
+        cancelReason: {
+            type: String,
+            required: false,
+            trim: true,
+            maxlength: 200,
         },
     },
     {

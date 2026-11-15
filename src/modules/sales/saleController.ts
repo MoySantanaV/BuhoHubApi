@@ -1,3 +1,4 @@
+import { Types } from 'mongoose';
 import { Req, Res } from '../../shared/types/express.js';
 import { calculateSale } from '../../shared/utils/salesCalculations.js';
 import { businessPeriodKeys, saleBusinessDate, saleDateFilter, type SalePeriod } from './saleDates.js';
@@ -53,6 +54,8 @@ export const getAllSales = async (req: Req, res: Res): Promise<void> => {
             })),
             hasTax: sale.hasTax,
             total: sale.total,
+            canceledAt: sale.canceledAt?.toISOString(),
+            cancelReason: sale.cancelReason,
         }));
 
         res.json(formattedSales);
@@ -218,6 +221,7 @@ export const getSalesStats = async (req: Req, res: Res): Promise<void> => {
                 $match: {
                     userId,
                     date: saleDateFilter(from, to),
+                    canceledAt: { $exists: false },
                 },
             },
             {
@@ -254,5 +258,63 @@ export const getSalesStats = async (req: Req, res: Res): Promise<void> => {
             success: false,
             message: 'Error al obtener estadísticas de ventas',
         });
+    }
+};
+
+/**
+ * Cancela una venta: se conserva en el historial pero deja de contar en totales y estadísticas.
+ * Body: { reason?: string }
+ */
+export const cancelSale = async (req: Req, res: Res): Promise<void> => {
+    try {
+        const userId = req.user._id;
+        const { id } = req.params;
+        const { reason } = req.body ?? {};
+
+        if (!Types.ObjectId.isValid(id)) {
+            res.status(404).json({ success: false, message: 'Venta no encontrada' });
+            return;
+        }
+
+        if (reason !== undefined && (typeof reason !== 'string' || reason.length > 200)) {
+            res.status(400).json({
+                success: false,
+                message: 'Motivo inválido',
+                errors: [{ field: 'reason', message: 'Máximo 200 caracteres' }],
+            });
+            return;
+        }
+
+        // Solo se cancela una vez; si ya estaba cancelada se responde igual sin tocar nada
+        const sale = await Sale.findOne({ _id: id, userId });
+        if (!sale) {
+            res.status(404).json({ success: false, message: 'Venta no encontrada' });
+            return;
+        }
+
+        if (!sale.canceledAt) {
+            sale.canceledAt = new Date();
+            const trimmed = reason?.trim();
+            if (trimmed) sale.cancelReason = trimmed;
+            await sale.save();
+
+            // La nota de solo lectura del cliente ya no describe una compra vigente
+            if (sale.clientId) {
+                try {
+                    await Client.updateOne({ _id: sale.clientId, userId }, { $pull: { notes: { saleId: sale._id } } });
+                } catch (error) {
+                    console.error('Error quitando la nota de venta del cliente:', error);
+                }
+            }
+        }
+
+        res.json({
+            id: sale._id.toString(),
+            canceledAt: sale.canceledAt.toISOString(),
+            cancelReason: sale.cancelReason,
+        });
+    } catch (error) {
+        console.error('Error canceling sale:', error);
+        res.status(500).json({ success: false, message: 'Error al cancelar la venta' });
     }
 };
