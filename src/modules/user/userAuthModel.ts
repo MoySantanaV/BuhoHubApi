@@ -58,6 +58,9 @@ export interface IUser extends Document {
     // Business profile
     businessProfile?: IBusinessProfile;
 
+    // Meta de ingresos del mes (pesos); sin definir = el usuario no tiene meta
+    monthlyRevenueGoal?: number;
+
     // Preferencias de la app (se guardan en el servidor para todos sus dispositivos)
     preferences?: IUserPreferences;
 
@@ -117,6 +120,7 @@ const UserSchema = new Schema<IUser>(
             phoneNormalized: String,
             businessNameNormalized: String,
         },
+        monthlyRevenueGoal: { type: Number, min: 1 },
         preferences: {
             notifications: { type: Boolean, default: true },
             notificationTypes: {

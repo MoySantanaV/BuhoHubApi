@@ -12,6 +12,7 @@ import placesRoutes from './modules/places/placesRoutes.js';
 import productRoutes from './modules/products/productRoutes.js';
 import saleRoutes from './modules/sales/saleRoutes.js';
 import scheduleRoutes from './modules/schedules/scheduleRoutes.js';
+import statsRoutes from './modules/stats/statsRoutes.js';
 import subscriptionRoutes from './modules/subscriptions/subscriptionRoutes.js';
 import userRoutes from './modules/user/userRoutes.js';
 
@@ -29,6 +30,7 @@ router.use('/non-working-days', nonWorkingDayRoutes);
 router.use('/blocked-time-slots', blockedTimeSlotRoutes);
 router.use('/appointments', appointmentRoutes);
 router.use('/sales', saleRoutes);
+router.use('/stats', statsRoutes);
 router.use('/subscriptions', subscriptionRoutes);
 router.use('/feedback', feedbackRoutes);
 router.use('/places', placesRoutes);
