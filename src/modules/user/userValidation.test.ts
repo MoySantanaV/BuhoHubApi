@@ -21,7 +21,6 @@ describe('parseBusinessProfile', () => {
         assert.equal(result.errors, undefined);
         assert.equal(result.value?.email, 'ana@x.com');
         assert.equal(result.value?.phone, '5512345678');
-        assert.equal(result.value?.businessNameNormalized, 'clinica ruiz');
         assert.equal(result.value?.wantsWebsite, true);
     });
 

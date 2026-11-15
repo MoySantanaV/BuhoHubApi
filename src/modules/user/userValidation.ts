@@ -1,4 +1,4 @@
-import { normalizeBusinessName, normalizePhone } from '../../shared/utils/identity.js';
+import { normalizePhone } from '../../shared/utils/identity.js';
 import type { IBusinessProfile } from './userAuthModel.js';
 
 export interface FieldError {
@@ -103,6 +103,5 @@ export const parseBusinessProfile = (body: unknown, accountEmail: string): Parse
 
     value.phone = phone;
     value.phoneNormalized = phone;
-    value.businessNameNormalized = normalizeBusinessName(value.businessName ?? '');
     return { value };
 };

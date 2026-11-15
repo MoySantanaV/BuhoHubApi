@@ -176,7 +176,7 @@ describe('cuentas: Google y perfil', () => {
             assert.equal((await get('/v1/users/me', token)).body.user.onboarding.profileCompleted, true);
         });
 
-        it('bloquea teléfono y negocio repetidos en otra cuenta', async () => {
+        it('bloquea un teléfono repetido en otra cuenta', async () => {
             const other = await signUp('otra@empresa.mx');
             const samePhone = await post(
                 '/v1/users/business-profile',
@@ -185,14 +185,18 @@ describe('cuentas: Google y perfil', () => {
                 'PUT'
             );
             assert.equal(samePhone.status, 409);
+            assert.equal(samePhone.body.errors[0].field, 'phone');
+        });
 
+        it('permite el mismo nombre de negocio y domicilio en otra cuenta con otro teléfono', async () => {
+            const other = await signUp('estilista2@empresa.mx');
             const sameBusiness = await post(
                 '/v1/users/business-profile',
                 { ...PROFILE, phone: '5599999999', businessName: 'clinica ruiz' },
                 other,
                 'PUT'
             );
-            assert.equal(sameBusiness.status, 409);
+            assert.equal(sameBusiness.status, 200);
         });
 
         it('guardar horarios marca schedulesCompleted', async () => {

@@ -150,23 +150,16 @@ export const updateBusinessProfile = async (req: Req, res: Res): Promise<void> =
             return;
         }
 
-        const { phoneNormalized, businessNameNormalized } = parsed.value;
-        const duplicate = await User.findOne({
+        const { phoneNormalized } = parsed.value;
+        const duplicate = await User.exists({
             _id: { $ne: userId },
-            $or: [
-                { 'businessProfile.phoneNormalized': phoneNormalized },
-                { 'businessProfile.businessNameNormalized': businessNameNormalized },
-            ],
-        }).select('businessProfile.phoneNormalized');
+            'businessProfile.phoneNormalized': phoneNormalized,
+        });
 
         if (duplicate) {
-            const isPhone = duplicate.businessProfile?.phoneNormalized === phoneNormalized;
-            const field = isPhone ? 'phone' : 'businessName';
             res.status(409).json({
-                message: isPhone
-                    ? 'Este teléfono ya está registrado en otra cuenta. Si es tuyo, escríbenos a soporte.'
-                    : 'Ese nombre de negocio ya está registrado en otra cuenta. Si es tuyo, escríbenos a soporte.',
-                errors: [{ field, message: 'Ya está registrado' }],
+                message: 'Este teléfono ya está registrado en otra cuenta. Si es tuyo, escríbenos a soporte.',
+                errors: [{ field: 'phone', message: 'Ya está registrado' }],
             });
             return;
         }

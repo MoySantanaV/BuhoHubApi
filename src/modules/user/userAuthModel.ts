@@ -25,7 +25,6 @@ export interface IBusinessProfile {
     longitude?: number;
     // Formas canónicas para detectar teléfonos y negocios repetidos entre cuentas
     phoneNormalized?: string;
-    businessNameNormalized?: string;
 }
 
 export interface IOnboarding {
@@ -118,7 +117,6 @@ const UserSchema = new Schema<IUser>(
             latitude: Number,
             longitude: Number,
             phoneNormalized: String,
-            businessNameNormalized: String,
         },
         monthlyRevenueGoal: { type: Number, min: 1 },
         preferences: {
@@ -137,14 +135,11 @@ const UserSchema = new Schema<IUser>(
     }
 );
 
-// Teléfono y nombre de negocio únicos entre cuentas (solo cuando están definidos)
+// Teléfono único entre cuentas (solo cuando está definido). El nombre del negocio puede repetirse:
+// dos estilistas pueden compartir domicilio y nombre; las separan su correo y su teléfono.
 UserSchema.index(
     { 'businessProfile.phoneNormalized': 1 },
     { unique: true, partialFilterExpression: { 'businessProfile.phoneNormalized': { $type: 'string' } } }
-);
-UserSchema.index(
-    { 'businessProfile.businessNameNormalized': 1 },
-    { unique: true, partialFilterExpression: { 'businessProfile.businessNameNormalized': { $type: 'string' } } }
 );
 
 // Mantiene las formas canónicas sincronizadas con el correo
