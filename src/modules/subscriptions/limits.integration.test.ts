@@ -10,13 +10,13 @@ import type { AddressInfo } from 'node:net';
 import type { MongoMemoryServer } from 'mongodb-memory-server';
 
 const SECRET = 'integration-test-secret';
-type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+type Json = Record<string, any>;
 
 describe('límites del plan: API completa', () => {
     let mongod: MongoMemoryServer;
     let server: Server;
     let baseUrl: string;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     let m: Record<string, any>;
 
     const makeUser = async (email: string, role?: string) => {

@@ -6,17 +6,17 @@ process.env.NODE_ENV = 'test';
 const { getAddress, searchAddresses } = await import('./placesController.js');
 
 const makeRes = () => {
-    const res: any = {}; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const res: any = {};
     res.status = mock.fn(() => res);
     res.json = mock.fn(() => res);
     return res;
 };
 const call = (handler: typeof searchAddresses | typeof getAddress, query: Record<string, string>) => {
     const res = makeRes();
-    const req: any = { user: { _id: 'u1' }, query }; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const req: any = { user: { _id: 'u1' }, query };
     return handler(req, res).then(() => res);
 };
-const status = (res: any) => res.status.mock.calls[0]?.arguments[0]; // eslint-disable-line @typescript-eslint/no-explicit-any
+const status = (res: any) => res.status.mock.calls[0]?.arguments[0];
 
 describe('buscador de direcciones', () => {
     afterEach(() => mock.restoreAll());

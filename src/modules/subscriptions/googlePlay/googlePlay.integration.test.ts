@@ -12,7 +12,7 @@ import type { MongoMemoryServer } from 'mongodb-memory-server';
 const SECRET = 'integration-test-secret';
 const RTDN_SECRET = 'rtdn-test-secret';
 const PACKAGE = 'com.buhohub.app';
-type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+type Json = Record<string, any>;
 
 const DAY = 24 * 60 * 60 * 1000;
 const inDays = (days: number) => new Date(Date.now() + days * DAY).toISOString();
@@ -21,7 +21,7 @@ describe('suscripciones con Google Play', () => {
     let mongod: MongoMemoryServer;
     let server: Server;
     let baseUrl: string;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     let m: Record<string, any>;
     const realFetch = globalThis.fetch;
 

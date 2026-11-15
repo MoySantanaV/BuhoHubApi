@@ -1,22 +1,17 @@
-import { FlatCompat } from '@eslint/eslintrc';
-import { dirname } from 'path';
-import { fileURLToPath } from 'url';
+import js from '@eslint/js';
+import prettierRecommended from 'eslint-plugin-prettier/recommended';
+import tseslint from 'typescript-eslint';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const compat = new FlatCompat({
-    baseDirectory: __dirname,
-});
-
-const eslintConfig = [
-    ...compat.extends('next/core-web-vitals', 'next/typescript'),
+export default tseslint.config(
+    { ignores: ['node_modules/**', 'dist/**', '.vercel/**', 'coverage/**'] },
+    js.configs.recommended,
+    ...tseslint.configs.recommended,
+    // Prettier corre como regla y apaga las reglas de estilo que chocan con él
+    prettierRecommended,
     {
         rules: {
             '@typescript-eslint/no-explicit-any': 'off',
             '@typescript-eslint/no-unused-vars': 'off',
         },
-    },
-];
-
-export default eslintConfig;
+    }
+);

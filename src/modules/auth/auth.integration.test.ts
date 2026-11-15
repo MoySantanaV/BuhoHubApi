@@ -9,7 +9,7 @@ import type { AddressInfo } from 'node:net';
 import type { MongoMemoryServer } from 'mongodb-memory-server';
 
 const SECRET = 'integration-test-secret';
-type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+type Json = Record<string, any>;
 
 const PROFILE = {
     name: 'Ana López',
@@ -28,7 +28,7 @@ describe('cuentas: Google y perfil', () => {
     let mongod: MongoMemoryServer;
     let server: Server;
     let baseUrl: string;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     let m: Record<string, any>;
     let googleSeq = 0;
 
