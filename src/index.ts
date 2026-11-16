@@ -10,6 +10,7 @@ import authRoutes from './modules/auth/authRoutes.js';
 import publicDirectoryRoutes from './modules/directory/publicDirectoryRoutes.js';
 import { env } from './shared/config/envConfig.js';
 import { connectDatabase } from './shared/config/mongodb.js';
+import { sanitizeBody } from './shared/middlewares/sanitizeBody.js';
 
 const app = express();
 
@@ -19,6 +20,8 @@ app.set('trust proxy', 1);
 // Body parsers
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+// Sin operadores de Mongo ($ne, $gt...) en lo que manda el cliente
+app.use(sanitizeBody);
 
 // Database connection (cached para serverless)
 let isConnected = false;
