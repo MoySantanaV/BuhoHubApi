@@ -26,6 +26,7 @@
         "migrate:business": "tsx scripts/migrateBusinessId.ts",
         "categories:promote": "tsx scripts/promoteCategory.ts",
         "test:reset-account": "tsx scripts/resetTestAccount.ts",
+        "installs:report": "tsx scripts/installsReport.ts",
         "check": "pnpm type-check && pnpm lint && pnpm format:check && pnpm test",
         "test": "node --import tsx --test 'src/**/*.test.ts'",
         "test:watch": "node --import tsx --test --watch 'src/**/*.test.ts'",
