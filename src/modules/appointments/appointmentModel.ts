@@ -3,10 +3,14 @@ import { Document, Schema, model, Types } from 'mongoose';
 export interface IAppointment extends Document {
     _id: Types.ObjectId;
     userId: Schema.Types.ObjectId;
+    /** Negocio dueño del dato; hoy igual al userId (ver shared/utils/tenant.ts) */
+    businessId?: Schema.Types.ObjectId;
     date: Date;
     time: string; // HH:mm format
     /** Minutos que dura; se guarda al agendar para que cambiar el intervalo no altere citas hechas */
     duration?: number;
+    /** Expediente del cliente; las citas escritas solo con nombre no lo tienen */
+    clientId?: Types.ObjectId;
     clientName: string;
     service: string;
     createdAt: Date;
@@ -20,6 +24,10 @@ const AppointmentSchema = new Schema<IAppointment>(
             ref: 'User',
             required: true,
             index: true,
+        },
+        businessId: {
+            type: Schema.Types.ObjectId,
+            ref: 'User',
         },
         date: {
             type: Date,
@@ -35,6 +43,11 @@ const AppointmentSchema = new Schema<IAppointment>(
             type: Number,
             min: 5,
             max: 480,
+        },
+        clientId: {
+            type: Schema.Types.ObjectId,
+            ref: 'Client',
+            required: false,
         },
         clientName: {
             type: String,
@@ -57,6 +70,12 @@ const AppointmentSchema = new Schema<IAppointment>(
 // Compound indexes for efficient queries and conflict detection
 AppointmentSchema.index({ userId: 1, date: 1 });
 AppointmentSchema.index({ userId: 1, date: 1, time: 1 });
+
+// Ninguna vía de creación deja el negocio vacío: se completa con el userId (cada cuenta es su negocio hoy)
+AppointmentSchema.pre('validate', function (next) {
+    if (!this.businessId) this.businessId = this.userId;
+    next();
+});
 
 const Appointment = model<IAppointment>('Appointment', AppointmentSchema);
 

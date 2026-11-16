@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '../auth/authMiddleware.js';
-import { createSale, getAllSales, getSalesStats } from './saleController.js';
+import { cancelSale, createSale, getAllSales, getSalesStats } from './saleController.js';
 
 const router = Router();
 
@@ -8,5 +8,6 @@ const router = Router();
 router.get('/', authenticate, getAllSales);
 router.post('/', authenticate, createSale);
 router.get('/stats', authenticate, getSalesStats);
+router.put('/:id/cancel', authenticate, cancelSale);
 
 export default router;

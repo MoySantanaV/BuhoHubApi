@@ -11,6 +11,8 @@ export interface IClientNote {
 export interface IClient extends Document {
     _id: Types.ObjectId;
     userId: Schema.Types.ObjectId;
+    /** Negocio dueño del dato; hoy igual al userId (ver shared/utils/tenant.ts) */
+    businessId?: Schema.Types.ObjectId;
     name: string;
     birthday?: Date;
     email?: string;
@@ -52,6 +54,10 @@ const ClientSchema = new Schema<IClient>(
             required: true,
             index: true,
         },
+        businessId: {
+            type: Schema.Types.ObjectId,
+            ref: 'User',
+        },
         name: {
             type: String,
             required: true,
@@ -85,6 +91,12 @@ const ClientSchema = new Schema<IClient>(
 ClientSchema.index({ userId: 1, name: 1 });
 ClientSchema.index({ userId: 1, email: 1 });
 ClientSchema.index({ userId: 1, phone: 1 });
+
+// Ninguna vía de creación deja el negocio vacío: se completa con el userId (cada cuenta es su negocio hoy)
+ClientSchema.pre('validate', function (next) {
+    if (!this.businessId) this.businessId = this.userId;
+    next();
+});
 
 const Client = model<IClient>('Client', ClientSchema);
 

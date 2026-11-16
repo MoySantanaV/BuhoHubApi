@@ -1,3 +1,4 @@
+import { Types } from 'mongoose';
 import { reserveFlowLimit, Reservation } from '../subscriptions/limitsMiddleware.js';
 import { periodOfDate, periodOfStoredDate } from '../subscriptions/limitsService.js';
 import { Req, Res } from '../../shared/types/express.js';
@@ -19,10 +20,52 @@ import {
 import { doTimeRangesOverlap, generateTimeSlots } from '../../shared/utils/timeSlotGenerator.js';
 import BlockedTimeSlot from '../blockedTimeSlots/blockedTimeSlotModel.js';
 import { notifyAppointmentChange, toAppointmentLike } from '../notifications/notificationService.js';
+import { businessScope } from '../../shared/utils/tenant.js';
+import Client from '../clients/clientModel.js';
 import Appointment from './appointmentModel.js';
 
 const conflictMessage = (existingTime: string, newTime: string) =>
     existingTime === newTime ? `Ya existe una cita a las ${newTime}` : `Se cruza con la cita de las ${existingTime}`;
+
+/** Respuesta de una cita (clientId solo si está ligada a un expediente) */
+const formatAppointment = (
+    appointment: {
+        _id: { toString(): string };
+        date: Date;
+        time: string;
+        clientId?: { toString(): string } | null;
+        clientName: string;
+        service: string;
+    },
+    duration: number
+) => ({
+    id: appointment._id.toString(),
+    date: formatDate(appointment.date),
+    time: appointment.time,
+    duration,
+    clientId: appointment.clientId?.toString(),
+    clientName: appointment.clientName,
+    service: appointment.service,
+});
+
+/**
+ * Nombre del cliente al que se liga una cita. Debe ser un cliente del mismo usuario;
+ * devuelve null si el id no es válido o es de otra cuenta.
+ */
+const findOwnClientName = async (req: Req, clientId: unknown): Promise<string | null> => {
+    if (typeof clientId !== 'string' || !Types.ObjectId.isValid(clientId)) return null;
+    const client = await Client.findOne({ _id: clientId, ...businessScope(req) })
+        .select('name')
+        .lean();
+    return client?.name ?? null;
+};
+
+const invalidClient = (res: Res) =>
+    res.status(400).json({
+        success: false,
+        message: 'Cliente no encontrado',
+        errors: [{ field: 'clientId', message: 'Cliente no encontrado' }],
+    });
 
 /**
  * Get all appointments for the authenticated user
@@ -34,7 +77,7 @@ export const getAllAppointments = async (req: Req, res: Res): Promise<void> => {
         const { date, dateFrom, dateTo } = req.query;
 
         // Build query
-        const query: any = { userId };
+        const query: any = { ...businessScope(req) };
 
         // Add date filters
         if (date) {
@@ -61,14 +104,9 @@ export const getAllAppointments = async (req: Req, res: Res): Promise<void> => {
         ]);
 
         // Format response
-        const formattedAppointments = appointments.map((appointment) => ({
-            id: appointment._id.toString(),
-            date: formatDate(appointment.date),
-            time: appointment.time,
-            duration: appointment.duration ?? interval,
-            clientName: appointment.clientName,
-            service: appointment.service,
-        }));
+        const formattedAppointments = appointments.map((appointment) =>
+            formatAppointment(appointment, appointment.duration ?? interval)
+        );
 
         res.json(formattedAppointments);
     } catch (error) {
@@ -88,7 +126,18 @@ export const createAppointment = async (req: Req, res: Res): Promise<void> => {
 
     try {
         const userId = req.user._id;
-        const { date: dateStr, time, clientName, service } = req.body;
+        const { date: dateStr, time, clientId, service } = req.body;
+        let { clientName } = req.body;
+
+        // Ligada a un expediente: el nombre sale del cliente (no se confía en el que mande la app)
+        if (clientId) {
+            const linkedName = await findOwnClientName(req, clientId);
+            if (linkedName === null) {
+                invalidClient(res);
+                return;
+            }
+            clientName = linkedName;
+        }
 
         // Validate required fields
         if (!dateStr) {
@@ -180,9 +229,11 @@ export const createAppointment = async (req: Req, res: Res): Promise<void> => {
         // Create appointment
         const appointment = await Appointment.create({
             userId,
+            businessId: req.businessId,
             date,
             time,
             duration: interval,
+            clientId: clientId || undefined,
             clientName: clientName.trim(),
             service: service.trim(),
         });
@@ -195,14 +246,7 @@ export const createAppointment = async (req: Req, res: Res): Promise<void> => {
         });
 
         // Format response
-        res.status(201).json({
-            id: appointment._id.toString(),
-            date: formatDate(appointment.date),
-            time: appointment.time,
-            duration: appointment.duration ?? interval,
-            clientName: appointment.clientName,
-            service: appointment.service,
-        });
+        res.status(201).json(formatAppointment(appointment, appointment.duration ?? interval));
     } catch (error) {
         await reservation?.release();
         console.error('Error creating appointment:', error);
@@ -222,10 +266,11 @@ export const updateAppointment = async (req: Req, res: Res): Promise<void> => {
     try {
         const userId = req.user._id;
         const { id } = req.params;
-        const { date: dateStr, time, clientName, service } = req.body;
+        const { date: dateStr, time, clientId, service } = req.body;
+        let { clientName } = req.body;
 
         // Find existing appointment
-        const existingAppointment = await Appointment.findOne({ _id: id, userId });
+        const existingAppointment = await Appointment.findOne({ _id: id, ...businessScope(req) });
         if (!existingAppointment) {
             res.status(404).json({
                 success: false,
@@ -263,6 +308,19 @@ export const updateAppointment = async (req: Req, res: Res): Promise<void> => {
                 return;
             }
             updateData.time = time;
+        }
+
+        // Ligar la cita a un expediente (su nombre manda) o desligarla (clientId vacío)
+        if (clientId) {
+            const linkedName = await findOwnClientName(req, clientId);
+            if (linkedName === null) {
+                invalidClient(res);
+                return;
+            }
+            updateData.clientId = clientId;
+            clientName = linkedName;
+        } else if (clientId === null || clientId === '') {
+            updateData.$unset = { clientId: 1 };
         }
 
         // Update other fields
@@ -328,8 +386,10 @@ export const updateAppointment = async (req: Req, res: Res): Promise<void> => {
             if (!reservation) return;
         }
 
-        // Update appointment (filtra por userId como defensa en profundidad)
-        const appointment = await Appointment.findOneAndUpdate({ _id: id, userId }, updateData, { new: true });
+        // Update appointment (filtra por negocio como defensa en profundidad)
+        const appointment = await Appointment.findOneAndUpdate({ _id: id, ...businessScope(req) }, updateData, {
+            new: true,
+        });
 
         if (!appointment) {
             await reservation?.release();
@@ -348,14 +408,7 @@ export const updateAppointment = async (req: Req, res: Res): Promise<void> => {
         });
 
         // Format response
-        res.json({
-            id: appointment._id.toString(),
-            date: formatDate(appointment.date),
-            time: appointment.time,
-            duration: appointment.duration ?? (await getAppointmentInterval(userId)),
-            clientName: appointment.clientName,
-            service: appointment.service,
-        });
+        res.json(formatAppointment(appointment, appointment.duration ?? (await getAppointmentInterval(userId))));
     } catch (error) {
         await reservation?.release();
         console.error('Error updating appointment:', error);
@@ -374,7 +427,7 @@ export const deleteAppointment = async (req: Req, res: Res): Promise<void> => {
         const userId = req.user._id;
         const { id } = req.params;
 
-        const appointment = await Appointment.findOneAndDelete({ _id: id, userId });
+        const appointment = await Appointment.findOneAndDelete({ _id: id, ...businessScope(req) });
 
         if (!appointment) {
             res.status(404).json({

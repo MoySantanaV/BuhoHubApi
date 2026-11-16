@@ -1,7 +1,11 @@
 import { confirmCapacityOrReject } from '../subscriptions/limitsMiddleware.js';
 import { Req, Res } from '../../shared/types/express.js';
+import { normalizePhone } from '../../shared/utils/identity.js';
 import { formatDate, formatDateTime, parseDate, parseDateOrDateTime } from '../../shared/utils/dateTimeHelpers.js';
+import { businessScope } from '../../shared/utils/tenant.js';
+import Appointment from '../appointments/appointmentModel.js';
 import Client from './clientModel.js';
+import { validateClientInput } from './clientValidation.js';
 
 /**
  * Get all clients for the authenticated user
@@ -9,11 +13,10 @@ import Client from './clientModel.js';
  */
 export const getAllClients = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = req.user._id;
         const { search, limit, offset } = req.query;
 
         // Build query
-        const query: any = { userId };
+        const query: any = { ...businessScope(req) };
 
         // Add search filter if provided (search in name, email, phone)
         if (search) {
@@ -71,30 +74,14 @@ export const createClient = async (req: Req, res: Res): Promise<void> => {
         const userId = req.user._id;
         const { name, birthday, email, phone, notes } = req.body;
 
-        // Validate required fields
-        if (!name || name.trim() === '') {
-            res.status(400).json({
-                success: false,
-                message: 'El nombre es requerido',
-                errors: [{ field: 'name', message: 'El nombre es requerido' }],
-            });
+        // Nombre, fecha de nacimiento, correo y teléfono son obligatorios
+        const fieldErrors = validateClientInput({ name, birthday, email, phone });
+        if (fieldErrors.length > 0) {
+            res.status(400).json({ success: false, message: fieldErrors[0].message, errors: fieldErrors });
             return;
         }
 
-        // Parse birthday if provided
-        let birthdayDate: Date | undefined;
-        if (birthday) {
-            try {
-                birthdayDate = parseDate(birthday);
-            } catch (error) {
-                res.status(400).json({
-                    success: false,
-                    message: 'Formato de fecha de nacimiento inválido',
-                    errors: [{ field: 'birthday', message: 'Formato debe ser YYYY-MM-DD' }],
-                });
-                return;
-            }
-        }
+        const birthdayDate = parseDate(birthday.trim());
 
         // Parse notes if provided
         let parsedNotes: any[] = [];
@@ -117,10 +104,11 @@ export const createClient = async (req: Req, res: Res): Promise<void> => {
         // Create client
         const client = await Client.create({
             userId,
+            businessId: req.businessId,
             name: name.trim(),
             birthday: birthdayDate,
-            email: email?.trim(),
-            phone: phone?.trim(),
+            email: email.trim(),
+            phone: normalizePhone(phone),
             notes: parsedNotes,
         });
 
@@ -156,17 +144,13 @@ export const createClient = async (req: Req, res: Res): Promise<void> => {
  */
 export const updateClient = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = req.user._id;
         const { id } = req.params;
         const { name, birthday, email, phone, notes } = req.body;
 
-        // Validate name if provided
-        if (name !== undefined && name.trim() === '') {
-            res.status(400).json({
-                success: false,
-                message: 'El nombre no puede estar vacío',
-                errors: [{ field: 'name', message: 'El nombre no puede estar vacío' }],
-            });
+        // Los campos que llegan no pueden quedar vacíos ni inválidos
+        const fieldErrors = validateClientInput({ name, birthday, email, phone }, { partial: true });
+        if (fieldErrors.length > 0) {
+            res.status(400).json({ success: false, message: fieldErrors[0].message, errors: fieldErrors });
             return;
         }
 
@@ -178,28 +162,15 @@ export const updateClient = async (req: Req, res: Res): Promise<void> => {
         }
 
         if (birthday !== undefined) {
-            if (birthday === null || birthday === '') {
-                updateData.birthday = undefined;
-            } else {
-                try {
-                    updateData.birthday = parseDate(birthday);
-                } catch (error) {
-                    res.status(400).json({
-                        success: false,
-                        message: 'Formato de fecha de nacimiento inválido',
-                        errors: [{ field: 'birthday', message: 'Formato debe ser YYYY-MM-DD' }],
-                    });
-                    return;
-                }
-            }
+            updateData.birthday = parseDate(birthday.trim());
         }
 
         if (email !== undefined) {
-            updateData.email = email?.trim() || undefined;
+            updateData.email = email.trim();
         }
 
         if (phone !== undefined) {
-            updateData.phone = phone?.trim() || undefined;
+            updateData.phone = normalizePhone(phone);
         }
 
         if (notes !== undefined) {
@@ -225,7 +196,7 @@ export const updateClient = async (req: Req, res: Res): Promise<void> => {
         }
 
         // Find and update client (only if belongs to user)
-        const client = await Client.findOneAndUpdate({ _id: id, userId }, updateData, { new: true });
+        const client = await Client.findOneAndUpdate({ _id: id, ...businessScope(req) }, updateData, { new: true });
 
         if (!client) {
             res.status(404).json({
@@ -233,6 +204,11 @@ export const updateClient = async (req: Req, res: Res): Promise<void> => {
                 message: 'Cliente no encontrado',
             });
             return;
+        }
+
+        // Sus citas guardan el nombre: si lo cambió, se actualiza en todas
+        if (updateData.name !== undefined) {
+            await Appointment.updateMany({ ...businessScope(req), clientId: client._id }, { clientName: client.name });
         }
 
         // Format response
@@ -264,11 +240,10 @@ export const updateClient = async (req: Req, res: Res): Promise<void> => {
  */
 export const deleteClient = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = req.user._id;
         const { id } = req.params;
 
         // Find and delete client (only if belongs to user)
-        const client = await Client.findOneAndDelete({ _id: id, userId });
+        const client = await Client.findOneAndDelete({ _id: id, ...businessScope(req) });
 
         if (!client) {
             res.status(404).json({
@@ -277,6 +252,9 @@ export const deleteClient = async (req: Req, res: Res): Promise<void> => {
             });
             return;
         }
+
+        // Sus citas se conservan con el nombre, pero ya sin expediente
+        await Appointment.updateMany({ ...businessScope(req), clientId: client._id }, { $unset: { clientId: 1 } });
 
         res.status(204).send();
     } catch (error) {

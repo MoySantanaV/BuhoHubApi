@@ -7,11 +7,15 @@ import type { EffectivePlan } from '../../modules/subscriptions/entitlements.js'
 declare global {
     // eslint-disable-next-line @typescript-eslint/no-namespace
     namespace Express {
+        // Vacía a propósito: Passport tipa `req.user` con esta interfaz y aquí se le añaden los campos de IUser
+        // eslint-disable-next-line @typescript-eslint/no-empty-object-type
         interface User extends IUser {}
         interface Request {
             userProfile?: IUserProfile;
             // Plan efectivo (tier, límites y funciones) calculado por `authenticate` en cada petición
             effectivePlan?: EffectivePlan;
+            // Negocio de la cuenta (lo pone `authenticate`; hoy igual al id del usuario). Ver shared/utils/tenant.ts
+            businessId?: IUser['_id'];
         }
     }
 }

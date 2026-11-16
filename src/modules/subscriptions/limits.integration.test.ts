@@ -10,13 +10,21 @@ import type { AddressInfo } from 'node:net';
 import type { MongoMemoryServer } from 'mongodb-memory-server';
 
 const SECRET = 'integration-test-secret';
-type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+type Json = Record<string, any>;
+
+// Un cliente nuevo exige nombre, nacimiento, correo y teléfono
+const clientBody = (name: string) => ({
+    name,
+    birthday: '1990-01-01',
+    email: 'cliente@test.com',
+    phone: '5512345678',
+});
 
 describe('límites del plan: API completa', () => {
     let mongod: MongoMemoryServer;
     let server: Server;
     let baseUrl: string;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     let m: Record<string, any>;
 
     const makeUser = async (email: string, role?: string) => {
@@ -44,7 +52,8 @@ describe('límites del plan: API completa', () => {
 
     const addClients = async (token: string, from: number, to: number) => {
         const results = [];
-        for (let i = from; i <= to; i++) results.push(await call(token, 'POST', '/clients', { name: `Cliente ${i}` }));
+        for (let i = from; i <= to; i++)
+            results.push(await call(token, 'POST', '/clients', clientBody(`Cliente ${i}`)));
         return results;
     };
 
@@ -104,7 +113,7 @@ describe('límites del plan: API completa', () => {
     });
 
     it('rechaza las peticiones sin sesión', async () => {
-        assert.equal((await call(null, 'POST', '/clients', { name: 'x' })).status, 401);
+        assert.equal((await call(null, 'POST', '/clients', clientBody('x'))).status, 401);
         assert.equal((await call(null, 'GET', '/subscriptions/entitlements')).status, 401);
     });
 
@@ -126,7 +135,7 @@ describe('límites del plan: API completa', () => {
             const created = await addClients(user.token, 1, 10);
             assert.ok(created.every((r) => r.status === 201));
 
-            const blocked = await call(user.token, 'POST', '/clients', { name: 'Cliente 11' });
+            const blocked = await call(user.token, 'POST', '/clients', clientBody('Cliente 11'));
             assert.equal(blocked.status, 403);
             assert.equal(blocked.body.code, 'PLAN_LIMIT_REACHED');
             assert.equal(blocked.body.limit, 'maxClients');
@@ -143,7 +152,7 @@ describe('límites del plan: API completa', () => {
             assert.equal(sale.status, 201);
 
             assert.equal((await call(user.token, 'DELETE', `/clients/${id}`)).status, 204);
-            assert.equal((await call(user.token, 'POST', '/clients', { name: 'Cabe otra vez' })).status, 201);
+            assert.equal((await call(user.token, 'POST', '/clients', clientBody('Cabe otra vez'))).status, 201);
         });
 
         it('15 altas simultáneas partiendo de 9 clientes nunca dejan más de 10', async () => {
@@ -151,7 +160,7 @@ describe('límites del plan: API completa', () => {
             await addClients(user.token, 1, 9);
 
             const results = await Promise.all(
-                Array.from({ length: 15 }, (_, i) => call(user.token, 'POST', '/clients', { name: `Carrera ${i}` }))
+                Array.from({ length: 15 }, (_, i) => call(user.token, 'POST', '/clients', clientBody(`Carrera ${i}`)))
             );
 
             const created = results.filter((r) => r.status === 201).length;
@@ -168,7 +177,7 @@ describe('límites del plan: API completa', () => {
             const b = await makeUser('b@test.com');
             await addClients(a.token, 1, 10);
 
-            assert.equal((await call(b.token, 'POST', '/clients', { name: 'De B' })).status, 201);
+            assert.equal((await call(b.token, 'POST', '/clients', clientBody('De B'))).status, 201);
         });
 
         it('con los límites desactivados (flag) no bloquea', async () => {
@@ -177,7 +186,7 @@ describe('límites del plan: API completa', () => {
             await m.setConfigValue('limitsEnforced', false);
 
             try {
-                assert.equal((await call(user.token, 'POST', '/clients', { name: 'Cliente 11' })).status, 201);
+                assert.equal((await call(user.token, 'POST', '/clients', clientBody('Cliente 11'))).status, 201);
             } finally {
                 await m.setConfigValue('limitsEnforced', true);
             }
@@ -292,7 +301,7 @@ describe('límites del plan: API completa', () => {
             const user = await makeUser('pro@test.com');
             await addClients(user.token, 1, 10);
 
-            assert.equal((await call(user.token, 'POST', '/clients', { name: 'Extra' })).status, 403);
+            assert.equal((await call(user.token, 'POST', '/clients', clientBody('Extra'))).status, 403);
 
             const grant = await call(admin.token, 'PUT', `/admin/users/${user.id}/subscription`, { tier: 'pro' });
             assert.equal(grant.status, 200);
@@ -315,7 +324,7 @@ describe('límites del plan: API completa', () => {
             assert.deepEqual(expired.body.limits.clients, { used: 14, max: 10, reached: true, over: true });
 
             assert.equal((await call(user.token, 'GET', '/clients')).body.length, 14);
-            assert.equal((await call(user.token, 'POST', '/clients', { name: 'Otro' })).status, 403);
+            assert.equal((await call(user.token, 'POST', '/clients', clientBody('Otro'))).status, 403);
             assert.equal((await call(user.token, 'GET', '/subscriptions/current')).body, null);
         });
 

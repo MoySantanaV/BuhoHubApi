@@ -1,7 +1,9 @@
+import { Types } from 'mongoose';
 import { Req, Res } from '../../shared/types/express.js';
-import { formatDate, formatTime, parseDate } from '../../shared/utils/dateTimeHelpers.js';
-import { calculateSale, getPeriodDateRange } from '../../shared/utils/salesCalculations.js';
+import { calculateSale } from '../../shared/utils/salesCalculations.js';
+import { businessPeriodKeys, saleBusinessDate, saleDateFilter, type SalePeriod } from './saleDates.js';
 import Sale from './saleModel.js';
+import { businessScope } from '../../shared/utils/tenant.js';
 import Client from '../clients/clientModel.js';
 import { getTaxConfig } from '../appConfig/appConfigService.js';
 
@@ -11,26 +13,28 @@ import { getTaxConfig } from '../appConfig/appConfigService.js';
  */
 export const getAllSales = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = req.user._id;
         const { dateFrom, dateTo, period } = req.query;
 
-        // Build query
-        const query: any = { userId };
+        // Build query (los días se interpretan en hora de México)
+        const query: any = { ...businessScope(req) };
 
         // Add date filters
         if (period) {
-            const { start, end } = getPeriodDateRange(period as 'today' | 'week' | 'month');
-            query.date = { $gte: start, $lte: end };
+            const { from, to } = businessPeriodKeys(period as SalePeriod);
+            query.date = saleDateFilter(from, to);
         } else if (dateFrom || dateTo) {
-            query.date = {};
-            if (dateFrom) {
-                const fromDate = parseDate(dateFrom as string);
-                query.date.$gte = fromDate;
+            const dayKey = /^\d{4}-\d{2}-\d{2}$/;
+            const from = dateFrom as string | undefined;
+            const to = dateTo as string | undefined;
+            if ((from && !dayKey.test(from)) || (to && !dayKey.test(to))) {
+                res.status(400).json({
+                    success: false,
+                    message: 'Fechas inválidas',
+                    errors: [{ field: 'dateFrom', message: 'Usa el formato YYYY-MM-DD' }],
+                });
+                return;
             }
-            if (dateTo) {
-                const toDate = parseDate(dateTo as string);
-                query.date.$lte = toDate;
-            }
+            query.date = saleDateFilter(from, to);
         }
 
         // Execute query with client population
@@ -41,8 +45,7 @@ export const getAllSales = async (req: Req, res: Res): Promise<void> => {
             id: sale._id.toString(),
             clientId: sale.clientId ? (sale.clientId as any)._id.toString() : undefined,
             clientName: sale.clientId ? (sale.clientId as any).name : undefined,
-            date: formatDate(sale.date),
-            time: sale.time,
+            ...saleBusinessDate(sale.date),
             products: sale.products.map((product) => ({
                 name: product.name,
                 price: product.price,
@@ -51,6 +54,8 @@ export const getAllSales = async (req: Req, res: Res): Promise<void> => {
             })),
             hasTax: sale.hasTax,
             total: sale.total,
+            canceledAt: sale.canceledAt?.toISOString(),
+            cancelReason: sale.cancelReason,
         }));
 
         res.json(formattedSales);
@@ -115,7 +120,7 @@ export const createSale = async (req: Req, res: Res): Promise<void> => {
 
         // Validate client belongs to the authenticated user
         if (clientId) {
-            const clientExists = await Client.exists({ _id: clientId, userId });
+            const clientExists = await Client.exists({ _id: clientId, ...businessScope(req) });
             if (!clientExists) {
                 res.status(400).json({
                     success: false,
@@ -130,15 +135,16 @@ export const createSale = async (req: Req, res: Res): Promise<void> => {
         const { rate } = await getTaxConfig();
         const calculated = calculateSale(products, hasTax, rate);
 
-        // Set date and time to now
+        // La venta guarda el instante real; el día y la hora de México se calculan al leerla
         const now = new Date();
 
         // Create sale
         const sale = await Sale.create({
             userId,
+            businessId: req.businessId,
             clientId: clientId || undefined,
             date: now,
-            time: formatTime(now),
+            time: saleBusinessDate(now).time,
             products: calculated.products,
             hasTax,
             subtotal: calculated.subtotal,
@@ -153,7 +159,7 @@ export const createSale = async (req: Req, res: Res): Promise<void> => {
                 const noteText = `Compra de $${calculated.total.toFixed(2)} - ${productNames}`;
 
                 await Client.findOneAndUpdate(
-                    { _id: clientId, userId },
+                    { _id: clientId, ...businessScope(req) },
                     {
                         $push: {
                             notes: {
@@ -179,8 +185,7 @@ export const createSale = async (req: Req, res: Res): Promise<void> => {
             id: sale._id.toString(),
             clientId: sale.clientId ? (sale.clientId as any)._id.toString() : undefined,
             clientName: sale.clientId ? (sale.clientId as any).name : undefined,
-            date: formatDate(sale.date),
-            time: sale.time,
+            ...saleBusinessDate(sale.date),
             products: sale.products.map((product) => ({
                 name: product.name,
                 price: product.price,
@@ -205,18 +210,18 @@ export const createSale = async (req: Req, res: Res): Promise<void> => {
  */
 export const getSalesStats = async (req: Req, res: Res): Promise<void> => {
     try {
-        const userId = req.user._id;
         const { period = 'today' } = req.query;
 
-        // Get date range
-        const { start, end, periodName } = getPeriodDateRange(period as 'today' | 'week' | 'month');
+        const periodName: SalePeriod = period === 'week' || period === 'month' ? period : 'today';
+        const { from, to } = businessPeriodKeys(periodName);
 
         // Aggregate sales
         const result = await Sale.aggregate([
             {
                 $match: {
-                    userId,
-                    date: { $gte: start, $lte: end },
+                    ...businessScope(req),
+                    date: saleDateFilter(from, to),
+                    canceledAt: { $exists: false },
                 },
             },
             {
@@ -236,15 +241,15 @@ export const getSalesStats = async (req: Req, res: Res): Promise<void> => {
                 totalSales: stats.totalSales,
                 totalRevenue: stats.totalRevenue,
                 period: 'today',
-                date: formatDate(start),
+                date: from,
             });
         } else {
             res.json({
                 totalSales: stats.totalSales,
                 totalRevenue: stats.totalRevenue,
                 period: periodName,
-                dateFrom: formatDate(start),
-                dateTo: formatDate(end),
+                dateFrom: from,
+                dateTo: to,
             });
         }
     } catch (error) {
@@ -253,5 +258,65 @@ export const getSalesStats = async (req: Req, res: Res): Promise<void> => {
             success: false,
             message: 'Error al obtener estadísticas de ventas',
         });
+    }
+};
+
+/**
+ * Cancela una venta: se conserva en el historial pero deja de contar en totales y estadísticas.
+ * Body: { reason?: string }
+ */
+export const cancelSale = async (req: Req, res: Res): Promise<void> => {
+    try {
+        const { id } = req.params;
+        const { reason } = req.body ?? {};
+
+        if (!Types.ObjectId.isValid(id)) {
+            res.status(404).json({ success: false, message: 'Venta no encontrada' });
+            return;
+        }
+
+        if (reason !== undefined && (typeof reason !== 'string' || reason.length > 200)) {
+            res.status(400).json({
+                success: false,
+                message: 'Motivo inválido',
+                errors: [{ field: 'reason', message: 'Máximo 200 caracteres' }],
+            });
+            return;
+        }
+
+        // Solo se cancela una vez; si ya estaba cancelada se responde igual sin tocar nada
+        const sale = await Sale.findOne({ _id: id, ...businessScope(req) });
+        if (!sale) {
+            res.status(404).json({ success: false, message: 'Venta no encontrada' });
+            return;
+        }
+
+        if (!sale.canceledAt) {
+            sale.canceledAt = new Date();
+            const trimmed = reason?.trim();
+            if (trimmed) sale.cancelReason = trimmed;
+            await sale.save();
+
+            // La nota de solo lectura del cliente ya no describe una compra vigente
+            if (sale.clientId) {
+                try {
+                    await Client.updateOne(
+                        { _id: sale.clientId, ...businessScope(req) },
+                        { $pull: { notes: { saleId: sale._id } } }
+                    );
+                } catch (error) {
+                    console.error('Error quitando la nota de venta del cliente:', error);
+                }
+            }
+        }
+
+        res.json({
+            id: sale._id.toString(),
+            canceledAt: sale.canceledAt.toISOString(),
+            cancelReason: sale.cancelReason,
+        });
+    } catch (error) {
+        console.error('Error canceling sale:', error);
+        res.status(500).json({ success: false, message: 'Error al cancelar la venta' });
     }
 };
