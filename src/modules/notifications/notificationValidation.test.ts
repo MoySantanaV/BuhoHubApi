@@ -1,6 +1,11 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseAnnouncement, parseDevice, parseNotificationPreferences } from './notificationValidation.js';
+import {
+    parseAnnouncement,
+    parseDevice,
+    parseInstall,
+    parseNotificationPreferences,
+} from './notificationValidation.js';
 
 describe('parseDevice', () => {
     const valid = { token: 'ExponentPushToken[abcDEF123456]', deviceId: 'device-uuid-1234', platform: 'android' };
@@ -40,5 +45,25 @@ describe('parseNotificationPreferences', () => {
         assert.ok(parseNotificationPreferences({ notificationTypes: { dailySummary: 'si' } }).error);
         assert.ok(parseNotificationPreferences({ notifications: 'si' }).error);
         assert.ok(parseNotificationPreferences({}).error);
+    });
+});
+
+describe('parseInstall', () => {
+    const valid = { deviceId: 'install-uuid-1234', platform: 'ios', appVersion: '1.0.0' };
+
+    it('acepta una instalación sin token de avisos', () => {
+        assert.deepEqual(parseInstall(valid).value, valid);
+    });
+
+    it('rechaza deviceId y plataforma inválidos', () => {
+        assert.ok(parseInstall({ ...valid, deviceId: 'corto' }).error);
+        assert.ok(parseInstall({ ...valid, deviceId: 'x'.repeat(101) }).error);
+        assert.ok(parseInstall({ ...valid, platform: 'web' }).error);
+        assert.ok(parseInstall(null).error);
+    });
+
+    it('recorta la versión a 20 caracteres y la ignora si no es texto', () => {
+        assert.equal(parseInstall({ ...valid, appVersion: '9'.repeat(40) }).value?.appVersion?.length, 20);
+        assert.equal(parseInstall({ ...valid, appVersion: 12 }).value?.appVersion, undefined);
     });
 });

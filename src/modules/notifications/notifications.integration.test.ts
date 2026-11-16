@@ -71,6 +71,7 @@ describe('notificaciones push', () => {
             UserProfile,
             Appointment,
             PushDevice,
+            AppInstall,
             NotificationLog,
             Feedback,
             profileService,
@@ -81,6 +82,7 @@ describe('notificaciones push', () => {
             import('../user/userModel.js'),
             import('../appointments/appointmentModel.js'),
             import('./pushDeviceModel.js'),
+            import('./appInstallModel.js'),
             import('./notificationLogModel.js'),
             import('../feedback/feedbackModel.js'),
             import('../user/userProfileService.js'),
@@ -89,7 +91,11 @@ describe('notificaciones push', () => {
 
         mongod = await MongoMemoryServer.create();
         await mongoose.default.connect(mongod.getUri());
-        await Promise.all([PushDevice.default.syncIndexes(), NotificationLog.default.syncIndexes()]);
+        await Promise.all([
+            PushDevice.default.syncIndexes(),
+            AppInstall.default.syncIndexes(),
+            NotificationLog.default.syncIndexes(),
+        ]);
 
         m = {
             jwt: jwt.default,
@@ -97,6 +103,7 @@ describe('notificaciones push', () => {
             UserProfile: UserProfile.default,
             Appointment: Appointment.default,
             PushDevice: PushDevice.default,
+            AppInstall: AppInstall.default,
             NotificationLog: NotificationLog.default,
             Feedback: Feedback.default,
             ensureUserProfile: profileService.ensureUserProfile,
@@ -175,6 +182,63 @@ describe('notificaciones push', () => {
             const removed = await call(ana.token, 'DELETE', `/v1/notifications/devices?deviceId=${device(1).deviceId}`);
             assert.equal(removed.status, 204);
             assert.equal(await m.PushDevice.countDocuments({ userId: ana.id }), 0);
+        });
+    });
+
+    describe('instalaciones', () => {
+        const install = (n: number, extra: Json = {}) => ({
+            deviceId: `install-id-${n}-xxxxxxxx`,
+            platform: 'android',
+            appVersion: '1.0.0',
+            ...extra,
+        });
+
+        it('registra la instalación sin token de avisos, la actualiza y valida los datos', async () => {
+            const ana = await makeUser('inst1@x.mx');
+
+            assert.equal((await call(ana.token, 'POST', '/v1/notifications/installs', install(1))).status, 204);
+            assert.equal(
+                (await call(ana.token, 'POST', '/v1/notifications/installs', install(1, { appVersion: '1.2.0' })))
+                    .status,
+                204
+            );
+            const saved = await m.AppInstall.find({ userId: ana.id });
+            assert.equal(saved.length, 1);
+            assert.equal(saved[0].appVersion, '1.2.0');
+            assert.equal(await m.PushDevice.countDocuments({ userId: ana.id }), 0);
+
+            assert.equal(
+                (await call(ana.token, 'POST', '/v1/notifications/installs', install(2, { deviceId: 'corto' }))).status,
+                400
+            );
+            assert.equal(
+                (await call(ana.token, 'POST', '/v1/notifications/installs', install(2, { platform: 'web' }))).status,
+                400
+            );
+            assert.equal((await call(null, 'POST', '/v1/notifications/installs', install(3))).status, 401);
+        });
+
+        it('una instalación que cambia de usuario se reasigna y no se duplica', async () => {
+            const ana = await makeUser('inst2@x.mx');
+            const beto = await makeUser('inst3@x.mx');
+
+            await call(ana.token, 'POST', '/v1/notifications/installs', install(5));
+            await call(beto.token, 'POST', '/v1/notifications/installs', install(5));
+
+            assert.equal(await m.AppInstall.countDocuments({ deviceId: install(5).deviceId }), 1);
+            assert.equal((await m.AppInstall.findOne({ deviceId: install(5).deviceId })).userId.toString(), beto.id);
+        });
+
+        it('cerrar sesión quita la instalación y borrar la cuenta quita las de la persona', async () => {
+            const ana = await makeUser('inst4@x.mx');
+            await call(ana.token, 'POST', '/v1/notifications/installs', install(7));
+            await call(ana.token, 'POST', '/v1/notifications/installs', install(8));
+
+            await call(ana.token, 'DELETE', `/v1/notifications/devices?deviceId=${install(7).deviceId}`);
+            assert.equal(await m.AppInstall.countDocuments({ userId: ana.id }), 1);
+
+            assert.equal((await call(ana.token, 'DELETE', '/v1/users/me')).status, 200);
+            assert.equal(await m.AppInstall.countDocuments({ userId: ana.id }), 0);
         });
     });
 

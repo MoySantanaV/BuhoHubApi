@@ -38,6 +38,32 @@ export const parseDevice = (body: unknown): Parsed<DeviceInput> => {
     };
 };
 
+export interface InstallInput {
+    deviceId: string;
+    platform: 'ios' | 'android';
+    appVersion?: string;
+}
+
+/** Valida el registro de una instalación (sin token de avisos): { deviceId, platform, appVersion? } */
+export const parseInstall = (body: unknown): Parsed<InstallInput> => {
+    if (!isRecord(body)) return { error: 'Datos inválidos' };
+
+    const { deviceId, platform, appVersion } = body;
+
+    if (typeof deviceId !== 'string' || deviceId.length < 8 || deviceId.length > 100) {
+        return { error: 'deviceId inválido' };
+    }
+    if (platform !== 'ios' && platform !== 'android') return { error: 'platform debe ser ios o android' };
+
+    return {
+        value: {
+            deviceId,
+            platform,
+            appVersion: typeof appVersion === 'string' ? appVersion.slice(0, 20) : undefined,
+        },
+    };
+};
+
 export interface AnnouncementInput {
     title: string;
     body: string;

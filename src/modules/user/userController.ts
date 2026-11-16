@@ -18,6 +18,7 @@ import { recordDeletedAccount, restoreUsageFromHistory } from './accountHistoryS
 import { parseBusinessProfile } from './userValidation.js';
 import { recordCategorySuggestion } from '../categories/categorySuggestionService.js';
 import { parseNotificationPreferences } from '../notifications/notificationValidation.js';
+import AppInstall from '../notifications/appInstallModel.js';
 import PushDevice from '../notifications/pushDeviceModel.js';
 import NotificationLog from '../notifications/notificationLogModel.js';
 import Feedback from '../feedback/feedbackModel.js';
@@ -117,6 +118,7 @@ export const deleteAccount = async (req: Req, res: Res): Promise<void> => {
             UserSchedule.deleteMany({ userId }),
             Usage.deleteMany({ userId }),
             PushDevice.deleteMany({ userId }),
+            AppInstall.deleteMany({ userId }),
             NotificationLog.deleteMany({ userId }),
             Feedback.deleteMany({ userId }),
             UserProfile.deleteOne({ userId }),

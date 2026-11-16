@@ -19,6 +19,7 @@ import CategorySuggestion from '../src/modules/categories/categorySuggestionMode
 import Client from '../src/modules/clients/clientModel.js';
 import Feedback from '../src/modules/feedback/feedbackModel.js';
 import NonWorkingDay from '../src/modules/nonWorkingDays/nonWorkingDayModel.js';
+import AppInstall from '../src/modules/notifications/appInstallModel.js';
 import NotificationLog from '../src/modules/notifications/notificationLogModel.js';
 import PushDevice from '../src/modules/notifications/pushDeviceModel.js';
 import Product from '../src/modules/products/productModel.js';
@@ -85,6 +86,7 @@ const run = async (): Promise<void> => {
         'horarios de trabajo': await UserSchedule.countDocuments({ userId }),
         'uso del plan': await Usage.countDocuments({ userId }),
         dispositivos: await PushDevice.countDocuments({ userId }),
+        instalaciones: await AppInstall.countDocuments({ userId }),
         'registro de avisos': await NotificationLog.countDocuments({ userId }),
         sugerencias: await Feedback.countDocuments({ userId }),
         'rastro de cuenta eliminada': await DeletedAccount.countDocuments(historyMatch),
@@ -115,6 +117,7 @@ const run = async (): Promise<void> => {
         UserSchedule.deleteMany({ userId }),
         Usage.deleteMany({ userId }),
         PushDevice.deleteMany({ userId }),
+        AppInstall.deleteMany({ userId }),
         NotificationLog.deleteMany({ userId }),
         Feedback.deleteMany({ userId }),
         UserProfile.deleteMany({ userId }),
