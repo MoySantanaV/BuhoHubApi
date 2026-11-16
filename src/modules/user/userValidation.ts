@@ -6,6 +6,7 @@ import {
 } from '../../shared/constants/professionCategories.js';
 import { normalizePhone } from '../../shared/utils/identity.js';
 import { citySlug } from '../../shared/utils/slug.js';
+import { capitalizeFirst } from '../../shared/utils/text.js';
 import type { IBusinessProfile } from './userAuthModel.js';
 
 export interface FieldError {
@@ -98,7 +99,8 @@ export const parseBusinessProfile = (body: unknown, accountEmail: string, existi
         const raw = text(input[field]);
         if (!raw) errors.push({ field, message: `${label} es obligatorio` });
         else if (raw.length > max) errors.push({ field, message: `${label} es demasiado largo` });
-        else set[field] = raw;
+        // Ciudad y estado se publican: se guardan con la primera letra en mayúscula
+        else set[field] = field === 'city' || field === 'state' ? capitalizeFirst(raw) : raw;
     }
 
     for (const { field, max } of OPTIONAL) {
@@ -109,7 +111,9 @@ export const parseBusinessProfile = (body: unknown, accountEmail: string, existi
 
     // Zona de cobertura: obligatoria si va a domicilio; con solo local no se guarda
     if (goesToClient) {
-        const area = input.serviceArea !== undefined ? text(input.serviceArea) : (existing?.serviceArea ?? '');
+        const area = capitalizeFirst(
+            input.serviceArea !== undefined ? text(input.serviceArea) : (existing?.serviceArea ?? '')
+        );
         if (!area) errors.push({ field: 'serviceArea', message: 'La zona donde atiendes es obligatoria' });
         else if (area.length > 200) errors.push({ field: 'serviceArea', message: 'La zona es demasiado larga' });
         else value.serviceArea = area;

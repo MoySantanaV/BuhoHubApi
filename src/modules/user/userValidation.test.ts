@@ -210,3 +210,20 @@ describe('parseBusinessProfile: dirección verificada', () => {
         );
     });
 });
+
+describe('zona donde atiendes', () => {
+    it('guarda la primera letra en mayúscula aunque la hayan escrito en minúscula', () => {
+        const result = parseBusinessProfile(
+            { ...valid, serviceMode: 'domicilio', serviceArea: 'zapopan y tlaquepaque' },
+            'a@x.com'
+        );
+        assert.equal(result.value?.serviceArea, 'Zapopan y tlaquepaque');
+    });
+
+    it('guarda la ciudad y el estado con la primera letra en mayúscula', () => {
+        const result = parseBusinessProfile({ ...valid, city: 'guadalajara', state: 'jalisco' }, 'a@x.com');
+        assert.equal(result.value?.city, 'Guadalajara');
+        assert.equal(result.value?.state, 'Jalisco');
+        assert.equal(result.value?.citySlug, 'guadalajara');
+    });
+});
