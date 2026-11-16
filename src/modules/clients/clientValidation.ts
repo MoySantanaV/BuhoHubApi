@@ -28,7 +28,8 @@ const isPastDay = (value: string, today: Date): boolean => {
 };
 
 /**
- * Datos de un cliente: nombre, fecha de nacimiento, correo y teléfono son obligatorios.
+ * Datos de un cliente: solo el nombre es obligatorio. La fecha de nacimiento, el correo y el teléfono
+ * son opcionales (hay clientes que no tienen correo o teléfono), pero si se escriben deben ser válidos.
  * Al actualizar (`partial`) solo se revisan los campos que llegan, para no pedir lo que no se toca.
  */
 export const validateClientInput = (
@@ -36,30 +37,23 @@ export const validateClientInput = (
     { partial = false, today = new Date() }: { partial?: boolean; today?: Date } = {}
 ): ClientFieldError[] => {
     const errors: ClientFieldError[] = [];
-    const sent = (value: unknown) => !partial || value !== undefined;
 
-    if (sent(name) && !text(name)) {
+    if ((!partial || name !== undefined) && !text(name)) {
         errors.push({ field: 'name', message: 'El nombre es requerido' });
     }
 
-    if (sent(birthday)) {
-        const day = text(birthday);
-        if (!day) errors.push({ field: 'birthday', message: 'La fecha de nacimiento es requerida' });
-        else if (!isPastDay(day, today)) {
-            errors.push({ field: 'birthday', message: 'Usa una fecha de nacimiento válida (YYYY-MM-DD)' });
-        }
+    const day = text(birthday);
+    if (day && !isPastDay(day, today)) {
+        errors.push({ field: 'birthday', message: 'Usa una fecha de nacimiento válida (YYYY-MM-DD)' });
     }
 
-    if (sent(email)) {
-        const address = text(email);
-        if (!address) errors.push({ field: 'email', message: 'El correo es requerido' });
-        else if (!EMAIL.test(address)) errors.push({ field: 'email', message: 'Escribe un correo válido' });
-    }
+    const address = text(email);
+    if (address && !EMAIL.test(address)) errors.push({ field: 'email', message: 'Escribe un correo válido' });
 
-    if (sent(phone)) {
-        const digits = normalizePhone(text(phone));
-        if (!digits) errors.push({ field: 'phone', message: 'El teléfono es requerido' });
-        else if (digits.length !== 10) errors.push({ field: 'phone', message: 'El teléfono debe tener 10 dígitos' });
+    // Si escribió algo, debe tener 10 dígitos (un texto sin números, como "abc", no se acepta)
+    const typedPhone = text(phone);
+    if (typedPhone && normalizePhone(typedPhone).length !== 10) {
+        errors.push({ field: 'phone', message: 'El teléfono debe tener 10 dígitos' });
     }
 
     return errors;

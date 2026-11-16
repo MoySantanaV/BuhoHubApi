@@ -88,16 +88,26 @@ describe('citas ligadas a un cliente: API completa', () => {
         await mongod.stop();
     });
 
-    it('el alta de un cliente exige nombre, nacimiento, correo y teléfono, y guarda el teléfono limpio', async () => {
+    it('el alta de un cliente solo exige el nombre; fecha, correo y teléfono son opcionales y se limpian al guardar', async () => {
         const user = await makeUser('altacliente@test.com');
 
-        const onlyName = await call(user.token, 'POST', '/clients', { name: 'Solo nombre' });
-        assert.equal(onlyName.status, 400);
+        const noName = await call(user.token, 'POST', '/clients', { phone: '5512345678' });
+        assert.equal(noName.status, 400);
         assert.deepEqual(
-            onlyName.body.errors.map((error: Json) => error.field),
-            ['birthday', 'email', 'phone']
+            noName.body.errors.map((error: Json) => error.field),
+            ['name']
         );
         assert.equal(await m.Client.countDocuments({ userId: user.id }), 0);
+
+        const onlyName = await call(user.token, 'POST', '/clients', { name: 'Doña Lupe' });
+        assert.equal(onlyName.status, 201);
+        assert.equal(onlyName.body.phone, undefined);
+        assert.equal(onlyName.body.email, undefined);
+        assert.equal(onlyName.body.birthday, undefined);
+
+        const badPhone = await call(user.token, 'POST', '/clients', { name: 'Don Pepe', phone: '123' });
+        assert.equal(badPhone.status, 400);
+        assert.equal(badPhone.body.errors[0].field, 'phone');
 
         const complete = await call(user.token, 'POST', '/clients', {
             name: 'Ana López',
@@ -109,9 +119,21 @@ describe('citas ligadas a un cliente: API completa', () => {
         assert.equal(complete.body.phone, '5512345678');
         assert.equal(complete.body.birthday, '1990-05-20');
 
-        const cleared = await call(user.token, 'PUT', `/clients/${complete.body.id}`, { email: '' });
-        assert.equal(cleared.status, 400);
-        assert.equal(cleared.body.errors[0].field, 'email');
+        // Un dato opcional que llega vacío se quita del cliente; el nombre no se puede vaciar
+        const cleared = await call(user.token, 'PUT', `/clients/${complete.body.id}`, {
+            email: '',
+            phone: '',
+            birthday: '',
+        });
+        assert.equal(cleared.status, 200);
+        assert.equal(cleared.body.email, undefined);
+        assert.equal(cleared.body.phone, undefined);
+        assert.equal(cleared.body.birthday, undefined);
+        assert.equal(cleared.body.name, 'Ana López');
+
+        const noNameUpdate = await call(user.token, 'PUT', `/clients/${complete.body.id}`, { name: '' });
+        assert.equal(noNameUpdate.status, 400);
+        assert.equal(noNameUpdate.body.errors[0].field, 'name');
     });
 
     it('una cita con clientId toma el nombre del expediente, no el que mande la app', async () => {
