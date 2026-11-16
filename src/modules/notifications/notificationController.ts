@@ -2,9 +2,10 @@ import crypto from 'crypto';
 import { env } from '../../shared/config/envConfig.js';
 import { Req, Res } from '../../shared/types/express.js';
 import { hitRateLimit } from '../auth/rateLimitService.js';
+import AppInstall from './appInstallModel.js';
 import PushDevice from './pushDeviceModel.js';
 import { runScheduledNotifications, sendAnnouncement } from './notificationService.js';
-import { parseAnnouncement, parseDevice } from './notificationValidation.js';
+import { parseAnnouncement, parseDevice, parseInstall } from './notificationValidation.js';
 
 const MAX_DEVICES_PER_USER = 10;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -51,6 +52,32 @@ export const registerDevice = async (req: Req, res: Res): Promise<void> => {
     }
 };
 
+/**
+ * Registra la instalación de la app, haya o no permiso de notificaciones (no lleva token). Una misma
+ * instalación pertenece a una sola cuenta: si el teléfono cambia de usuario, se reasigna.
+ */
+export const registerInstall = async (req: Req, res: Res): Promise<void> => {
+    try {
+        const { value, error } = parseInstall(req.body);
+        if (error) {
+            res.status(400).json({ message: error });
+            return;
+        }
+
+        const { deviceId, platform, appVersion } = value;
+        await AppInstall.findOneAndUpdate(
+            { deviceId },
+            { $set: { userId: req.user._id, platform, appVersion, lastSeenAt: new Date() } },
+            { upsert: true }
+        );
+
+        res.status(204).send();
+    } catch (error) {
+        console.error('Error registrando la instalación:', error);
+        res.status(500).json({ message: 'No pudimos registrar esta instalación' });
+    }
+};
+
 /** Quita el dispositivo (cierre de sesión o permiso revocado). */
 export const unregisterDevice = async (req: Req, res: Res): Promise<void> => {
     try {
@@ -60,7 +87,10 @@ export const unregisterDevice = async (req: Req, res: Res): Promise<void> => {
             return;
         }
 
-        await PushDevice.deleteMany({ userId: req.user._id, deviceId });
+        await Promise.all([
+            PushDevice.deleteMany({ userId: req.user._id, deviceId }),
+            AppInstall.deleteMany({ userId: req.user._id, deviceId }),
+        ]);
         res.status(204).send();
     } catch (error) {
         console.error('Error quitando dispositivo:', error);

@@ -5,7 +5,10 @@ import { formatDate, formatDateTime, parseDate, parseDateOrDateTime } from '../.
 import { businessScope } from '../../shared/utils/tenant.js';
 import Appointment from '../appointments/appointmentModel.js';
 import Client from './clientModel.js';
+import { mergeClientNotes } from './clientNotes.js';
 import { validateClientInput } from './clientValidation.js';
+
+const trimmed = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
 
 /**
  * Get all clients for the authenticated user
@@ -74,14 +77,16 @@ export const createClient = async (req: Req, res: Res): Promise<void> => {
         const userId = req.user._id;
         const { name, birthday, email, phone, notes } = req.body;
 
-        // Nombre, fecha de nacimiento, correo y teléfono son obligatorios
+        // Solo el nombre es obligatorio; fecha, correo y teléfono, si se escriben, deben ser válidos
         const fieldErrors = validateClientInput({ name, birthday, email, phone });
         if (fieldErrors.length > 0) {
             res.status(400).json({ success: false, message: fieldErrors[0].message, errors: fieldErrors });
             return;
         }
 
-        const birthdayDate = parseDate(birthday.trim());
+        const birthdayText = trimmed(birthday);
+        const emailText = trimmed(email);
+        const phoneText = trimmed(phone);
 
         // Parse notes if provided
         let parsedNotes: any[] = [];
@@ -106,9 +111,9 @@ export const createClient = async (req: Req, res: Res): Promise<void> => {
             userId,
             businessId: req.businessId,
             name: name.trim(),
-            birthday: birthdayDate,
-            email: email.trim(),
-            phone: normalizePhone(phone),
+            birthday: birthdayText ? parseDate(birthdayText) : undefined,
+            email: emailText || undefined,
+            phone: phoneText ? normalizePhone(phoneText) : undefined,
             notes: parsedNotes,
         });
 
@@ -161,25 +166,31 @@ export const updateClient = async (req: Req, res: Res): Promise<void> => {
             updateData.name = name.trim();
         }
 
+        // Un dato opcional que llega vacío se borra del cliente
+        const cleared: Record<string, ''> = {};
         if (birthday !== undefined) {
-            updateData.birthday = parseDate(birthday.trim());
+            if (trimmed(birthday)) updateData.birthday = parseDate(trimmed(birthday));
+            else cleared.birthday = '';
         }
 
         if (email !== undefined) {
-            updateData.email = email.trim();
+            if (trimmed(email)) updateData.email = trimmed(email);
+            else cleared.email = '';
         }
 
         if (phone !== undefined) {
-            updateData.phone = normalizePhone(phone);
+            if (trimmed(phone)) updateData.phone = normalizePhone(trimmed(phone));
+            else cleared.phone = '';
         }
 
         if (notes !== undefined) {
             if (Array.isArray(notes)) {
                 try {
-                    updateData.notes = notes.map((note: any) => ({
-                        date: note.date ? parseDateOrDateTime(note.date) : new Date(),
-                        text: note.text,
-                    }));
+                    // Se parte de lo guardado: así las notas de venta no pierden su tipo ni se pueden quitar
+                    const current = await Client.findOne({ _id: id, ...businessScope(req) })
+                        .select('notes')
+                        .lean();
+                    updateData.notes = mergeClientNotes(current?.notes ?? [], notes);
                 } catch (error) {
                     res.status(400).json({
                         success: false,
@@ -196,7 +207,11 @@ export const updateClient = async (req: Req, res: Res): Promise<void> => {
         }
 
         // Find and update client (only if belongs to user)
-        const client = await Client.findOneAndUpdate({ _id: id, ...businessScope(req) }, updateData, { new: true });
+        const client = await Client.findOneAndUpdate(
+            { _id: id, ...businessScope(req) },
+            { $set: updateData, ...(Object.keys(cleared).length > 0 ? { $unset: cleared } : {}) },
+            { new: true }
+        );
 
         if (!client) {
             res.status(404).json({

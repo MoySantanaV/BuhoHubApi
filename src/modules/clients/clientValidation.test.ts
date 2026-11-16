@@ -11,20 +11,26 @@ describe('validateClientInput', () => {
         assert.deepEqual(validateClientInput(valid, { today }), []);
     });
 
-    it('al crear pide nombre, nacimiento, correo y teléfono', () => {
-        assert.deepEqual(fields(validateClientInput({}, { today })), ['name', 'birthday', 'email', 'phone']);
+    it('al crear solo pide el nombre', () => {
+        assert.deepEqual(fields(validateClientInput({}, { today })), ['name']);
         assert.deepEqual(fields(validateClientInput({ name: '  ', birthday: '', email: ' ', phone: '' }, { today })), [
             'name',
-            'birthday',
-            'email',
-            'phone',
         ]);
+        assert.deepEqual(validateClientInput({ name: 'Doña Lupe' }, { today }), []);
     });
 
-    it('rechaza valores que no son texto', () => {
+    it('fecha, correo y teléfono vacíos son válidos, pero si se escriben se validan', () => {
+        assert.deepEqual(validateClientInput({ name: 'Don Pepe', birthday: '', email: '', phone: '' }, { today }), []);
+        assert.deepEqual(
+            fields(validateClientInput({ name: 'Don Pepe', birthday: 'x', email: 'x', phone: '1' }, { today })),
+            ['birthday', 'email', 'phone']
+        );
+    });
+
+    it('un opcional que no es texto se toma como no escrito, pero el nombre sí debe ser texto', () => {
         assert.deepEqual(
             fields(validateClientInput({ name: 5, birthday: 20, email: {}, phone: ['5512345678'] }, { today })),
-            ['name', 'birthday', 'email', 'phone']
+            ['name']
         );
     });
 
@@ -56,10 +62,11 @@ describe('validateClientInput', () => {
         assert.deepEqual(fields(validateClientInput({ phone: '123' }, { partial: true, today })), ['phone']);
     });
 
-    it('al actualizar no deja vaciar un dato obligatorio', () => {
+    it('al actualizar no deja vaciar el nombre, pero sí la fecha, el correo y el teléfono', () => {
+        assert.deepEqual(fields(validateClientInput({ name: '' }, { partial: true, today })), ['name']);
         assert.deepEqual(
-            fields(validateClientInput({ name: '', birthday: null, email: '', phone: '' }, { partial: true, today })),
-            ['name', 'birthday', 'email', 'phone']
+            validateClientInput({ name: 'Ana', birthday: '', email: '', phone: '' }, { partial: true, today }),
+            []
         );
     });
 });
