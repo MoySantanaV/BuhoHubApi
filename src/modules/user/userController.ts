@@ -16,10 +16,12 @@ import { toAuthUser } from '../auth/authPayload.js';
 import { normalizeEmail } from '../../shared/utils/identity.js';
 import { recordDeletedAccount, restoreUsageFromHistory } from './accountHistoryService.js';
 import { parseBusinessProfile } from './userValidation.js';
+import { recordCategorySuggestion } from '../categories/categorySuggestionService.js';
 import { parseNotificationPreferences } from '../notifications/notificationValidation.js';
 import PushDevice from '../notifications/pushDeviceModel.js';
 import NotificationLog from '../notifications/notificationLogModel.js';
 import Feedback from '../feedback/feedbackModel.js';
+import { removePhoto } from '../directory/directoryPhoto.js';
 
 // Obtener perfil del usuario autenticado
 export const getProfile = (req: Req, res: Res): void => {
@@ -102,8 +104,9 @@ export const deleteAccount = async (req: Req, res: Res): Promise<void> => {
             user.businessProfile?.phoneNormalized
         );
 
-        // Borra en paralelo todos los datos de negocio del usuario
+        // Borra en paralelo todos los datos de negocio del usuario (y su foto pública, si tenía)
         await Promise.all([
+            removePhoto(user.publicListing?.photo?.key),
             Client.deleteMany(businessScopeOf(userId)),
             Product.deleteMany(businessScopeOf(userId)),
             Sale.deleteMany(businessScopeOf(userId)),
@@ -145,7 +148,7 @@ export const updateBusinessProfile = async (req: Req, res: Res): Promise<void> =
         const user = req.user as IUser;
         const userId = user._id;
 
-        const parsed = parseBusinessProfile(req.body, user.email);
+        const parsed = parseBusinessProfile(req.body, user.email, user.businessProfile);
         if (parsed.errors) {
             res.status(400).json({ message: 'Revisa los datos del perfil', errors: parsed.errors });
             return;
@@ -178,6 +181,13 @@ export const updateBusinessProfile = async (req: Req, res: Res): Promise<void> =
 
         // Un teléfono que ya tuvo una cuenta eliminada hereda su uso del mes
         await restoreUsageFromHistory(userId, { phoneNormalized });
+
+        // Una profesión que no estaba en la lista se anota para revisarla; si falla, el perfil ya quedó guardado
+        if (parsed.suggestion) {
+            await recordCategorySuggestion(userId, parsed.suggestion).catch((error) =>
+                console.error('Error registrando sugerencia de categoría:', error)
+            );
+        }
 
         res.json(updated.businessProfile || {});
     } catch (error) {

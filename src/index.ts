@@ -7,6 +7,7 @@ import mongoose from 'mongoose';
 import apiRouter from './apiRouter.js';
 import passport from './modules/auth/authConfig.js';
 import authRoutes from './modules/auth/authRoutes.js';
+import publicDirectoryRoutes from './modules/directory/publicDirectoryRoutes.js';
 import { env } from './shared/config/envConfig.js';
 import { connectDatabase } from './shared/config/mongodb.js';
 
@@ -33,6 +34,10 @@ app.use(async (_req, _res, next) => {
     await ensureDbConnection();
     next();
 });
+
+// Directorio público: solo lectura y con llave. Va antes de CORS y de la sesión: no es para navegadores
+// (la consulta el servidor de la landing) y una consulta pública no debe crear sesiones.
+app.use('/v1/public', publicDirectoryRoutes);
 
 // CORS
 app.use(

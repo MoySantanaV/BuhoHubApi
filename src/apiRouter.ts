@@ -4,7 +4,9 @@ import appConfigRoutes from './modules/appConfig/appConfigRoutes.js';
 import appointmentIntervalRoutes from './modules/appointmentInterval/appointmentIntervalRoutes.js';
 import appointmentRoutes from './modules/appointments/appointmentRoutes.js';
 import blockedTimeSlotRoutes from './modules/blockedTimeSlots/blockedTimeSlotRoutes.js';
+import categoriesRoutes from './modules/categories/categoriesRoutes.js';
 import clientRoutes from './modules/clients/clientRoutes.js';
+import directoryRoutes from './modules/directory/directoryRoutes.js';
 import feedbackRoutes from './modules/feedback/feedbackRoutes.js';
 import { cronRoutes, deviceRoutes } from './modules/notifications/notificationRoutes.js';
 import nonWorkingDayRoutes from './modules/nonWorkingDays/nonWorkingDayRoutes.js';
@@ -21,6 +23,8 @@ const router = express.Router();
 // Montar rutas de cada módulo
 router.use('/admin', adminRoutes);
 router.use('/app-config', appConfigRoutes);
+router.use('/users/categories', categoriesRoutes);
+router.use('/users/directory', directoryRoutes);
 router.use('/users', userRoutes);
 router.use('/products', productRoutes);
 router.use('/clients', clientRoutes);

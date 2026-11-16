@@ -25,6 +25,25 @@ export interface IBusinessProfile {
     longitude?: number;
     // Formas canónicas para detectar teléfonos y negocios repetidos entre cuentas
     phoneNormalized?: string;
+    // Directorio: categoría de la lista central ('otro' + customCategory si no estaba), modo de atención
+    // (local/domicilio/ambos), zona de cobertura y la ciudad en forma de URL
+    category?: string;
+    customCategory?: string;
+    customCategoryNormalized?: string;
+    serviceMode?: 'local' | 'domicilio' | 'ambos';
+    serviceArea?: string;
+    citySlug?: string;
+}
+
+// Lo que gestiona solo el servidor del directorio público: va aparte del perfil porque el PUT del
+// perfil reemplaza ese subdocumento completo y lo borraría
+export interface IPublicListing {
+    listed: boolean;
+    consentAt?: Date;
+    consentVersion?: string;
+    withdrawnAt?: Date;
+    slug?: string;
+    photo?: { url: string; key: string };
 }
 
 export interface IOnboarding {
@@ -56,6 +75,9 @@ export interface IUser extends Document {
 
     // Business profile
     businessProfile?: IBusinessProfile;
+
+    // Directorio público (opt-in); sin definir = no aparece
+    publicListing?: IPublicListing;
 
     // Meta de ingresos del mes (pesos); sin definir = el usuario no tiene meta
     monthlyRevenueGoal?: number;
@@ -117,6 +139,23 @@ const UserSchema = new Schema<IUser>(
             latitude: Number,
             longitude: Number,
             phoneNormalized: String,
+            category: String,
+            customCategory: String,
+            customCategoryNormalized: String,
+            serviceMode: { type: String, enum: ['local', 'domicilio', 'ambos'] },
+            serviceArea: String,
+            citySlug: String,
+        },
+        publicListing: {
+            type: {
+                listed: { type: Boolean, default: false },
+                consentAt: Date,
+                consentVersion: String,
+                withdrawnAt: Date,
+                slug: String,
+                photo: { type: { url: String, key: String }, _id: false },
+            },
+            _id: false,
         },
         monthlyRevenueGoal: { type: Number, min: 1 },
         preferences: {
@@ -141,6 +180,14 @@ UserSchema.index(
     { 'businessProfile.phoneNormalized': 1 },
     { unique: true, partialFilterExpression: { 'businessProfile.phoneNormalized': { $type: 'string' } } }
 );
+
+// Slug público único (la URL que indexa Google); solo cuando existe
+UserSchema.index(
+    { 'publicListing.slug': 1 },
+    { unique: true, partialFilterExpression: { 'publicListing.slug': { $type: 'string' } } }
+);
+// Consulta del directorio: perfiles publicados por categoría y ciudad
+UserSchema.index({ 'publicListing.listed': 1, 'businessProfile.category': 1, 'businessProfile.citySlug': 1 });
 
 // Mantiene las formas canónicas sincronizadas con el correo
 UserSchema.pre('validate', function (next) {

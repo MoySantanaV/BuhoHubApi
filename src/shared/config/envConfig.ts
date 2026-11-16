@@ -37,6 +37,25 @@ export const env = {
         // autocompletado responde 503 y la app deja escribir la dirección a mano.
         apiKey: process.env.GOOGLE_PLACES_API_KEY || '',
     },
+    directory: {
+        // Llave(s) con las que la landing consulta el directorio público (separadas por coma para poder
+        // rotarlas sin caída). Sin ninguna, las rutas públicas quedan cerradas.
+        apiKeys: (process.env.DIRECTORY_API_KEY || '')
+            .split(',')
+            .map((key) => key.trim())
+            .filter(Boolean),
+        // Sitio donde viven las páginas públicas (para armar el enlace que se comparte)
+        siteUrl: (process.env.PUBLIC_SITE_URL || 'https://www.buhohub.com').replace(/\/+$/, ''),
+        // Almacén de las fotos (Cloudflare R2, compatible con S3). Sin alguno de estos datos, subir foto responde 503
+        photos: {
+            accountId: process.env.R2_ACCOUNT_ID || '',
+            accessKeyId: process.env.R2_ACCESS_KEY_ID || '',
+            secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || '',
+            bucket: process.env.R2_BUCKET || '',
+            // Dirección pública del bucket (dominio propio, p. ej. https://profile.buhohub.com), sin "/" final
+            publicUrl: (process.env.R2_PUBLIC_URL || '').replace(/\/+$/, ''),
+        },
+    },
     notifications: {
         // Protege el endpoint que llama el temporizador; sin él, el endpoint queda deshabilitado
         cronSecret: process.env.CRON_SECRET || '',
