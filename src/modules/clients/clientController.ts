@@ -5,6 +5,7 @@ import { formatDate, formatDateTime, parseDate, parseDateOrDateTime } from '../.
 import { businessScope } from '../../shared/utils/tenant.js';
 import Appointment from '../appointments/appointmentModel.js';
 import Client from './clientModel.js';
+import { mergeClientNotes } from './clientNotes.js';
 import { validateClientInput } from './clientValidation.js';
 
 /**
@@ -176,10 +177,11 @@ export const updateClient = async (req: Req, res: Res): Promise<void> => {
         if (notes !== undefined) {
             if (Array.isArray(notes)) {
                 try {
-                    updateData.notes = notes.map((note: any) => ({
-                        date: note.date ? parseDateOrDateTime(note.date) : new Date(),
-                        text: note.text,
-                    }));
+                    // Se parte de lo guardado: así las notas de venta no pierden su tipo ni se pueden quitar
+                    const current = await Client.findOne({ _id: id, ...businessScope(req) })
+                        .select('notes')
+                        .lean();
+                    updateData.notes = mergeClientNotes(current?.notes ?? [], notes);
                 } catch (error) {
                     res.status(400).json({
                         success: false,
