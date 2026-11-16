@@ -82,12 +82,12 @@ export const DEFAULT_TIERS: TiersConfig = {
     },
 };
 
+// Solo lo que el plan Gratis no tiene: los límites. Todo lo demás (agenda, cobrar, historial) ya viene en Gratis.
 const PRO_FEATURES = [
-    'Clientes, citas y servicios ilimitados',
-    'Agenda con vistas de día, semana y mes',
-    'Punto de venta con IVA automático',
-    'Historial completo de ventas',
-    'Panel de inicio con ingresos del día y de la semana',
+    'Clientes ilimitados',
+    'Citas ilimitadas cada mes',
+    'Servicios y productos ilimitados',
+    'Todo lo del plan Gratis',
 ];
 
 export const FREE_PLAN: PlanConfig = {
