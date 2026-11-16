@@ -84,10 +84,10 @@ export const DEFAULT_TIERS: TiersConfig = {
 
 const PRO_FEATURES = [
     'Clientes, citas y servicios ilimitados',
-    'Citas ilimitadas con vistas día/semana/mes',
+    'Agenda con vistas de día, semana y mes',
     'Punto de venta con IVA automático',
     'Historial completo de ventas',
-    'Dashboard en tiempo real',
+    'Panel de inicio con ingresos del día y de la semana',
 ];
 
 export const FREE_PLAN: PlanConfig = {
@@ -104,7 +104,7 @@ export const FREE_PLAN: PlanConfig = {
         'Hasta 15 citas al mes',
         'Hasta 3 servicios o productos',
         'Punto de venta e historial de ventas',
-        'Dashboard con estadísticas',
+        'Panel de inicio con tus citas e ingresos',
     ],
 };
 
@@ -127,7 +127,7 @@ export const DEFAULT_PLANS: PlanConfig[] = [
         tier: 'pro',
         name: 'Anual',
         nameAccent: 'Pro',
-        description: 'Ahorra dinero con todo desbloqueado y acceso a funciones exclusivas',
+        description: 'Todo desbloqueado y ahorras 2 meses al pagar por año',
         price: 2490,
         currency: 'MXN',
         interval: 'year',
