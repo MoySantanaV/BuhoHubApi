@@ -6,6 +6,13 @@ import { Next, Req, Res } from '../../shared/types/express.js';
 import User from '../user/userAuthModel.js';
 import passport from './authConfig.js';
 import { signApiToken, toAuthUser } from './authPayload.js';
+import {
+    OAUTH_STATE_COOKIE,
+    OAUTH_STATE_MAX_AGE_MS,
+    createStateNonce,
+    readCookie,
+    verifyOAuthState,
+} from './oauthState.js';
 
 const router = express.Router();
 const usedTokens = new Set<string>();
@@ -25,6 +32,14 @@ const isAllowedAppRedirect = (uri: string): boolean => {
     if (uri.startsWith('buhohub://')) return true;
     // Expo Go / dev client en desarrollo
     return env.nodeEnv !== 'production' && uri.startsWith('exp://');
+};
+
+// Cookie del inicio de sesión: Lax para que el navegador la envíe al volver de Google (navegación GET de nivel superior)
+const oauthStateCookieOptions = {
+    httpOnly: true,
+    secure: env.nodeEnv === 'production',
+    sameSite: 'lax' as const,
+    path: '/auth/google',
 };
 
 // Middleware CORS MEJORADO
@@ -61,10 +76,16 @@ router.get('/google', (req: Req, res: Res, next) => {
         return res.status(400).json({ message: 'redirectUri no permitido' });
     }
 
+    // El valor aleatorio viaja en el state y en una cookie de este navegador: el callback solo se acepta si
+    // coinciden, así un enlace de callback armado por otra persona no inicia sesión en el navegador de la víctima
+    const nonce = createStateNonce();
+    res.cookie(OAUTH_STATE_COOKIE, nonce, { ...oauthStateCookieOptions, maxAge: OAUTH_STATE_MAX_AGE_MS });
+
     const state = JSON.stringify({
         from: from || 'web',
         redirectUri: redirectUri || '',
         timestamp: Date.now(),
+        nonce,
     });
 
     passport.authenticate('google', {
@@ -75,6 +96,14 @@ router.get('/google', (req: Req, res: Res, next) => {
 
 // Callback de Google OAuth - VERSIÓN CORREGIDA
 router.get('/google/callback', (req: Req, res: Res, next) => {
+    // Se comprueba antes de hablar con Google; la cookie es de un solo uso
+    const verifiedState = verifyOAuthState(req.query.state, readCookie(req.headers.cookie, OAUTH_STATE_COOKIE));
+    res.clearCookie(OAUTH_STATE_COOKIE, oauthStateCookieOptions);
+    if (!verifiedState) {
+        console.error('❌ Callback de Google con state inválido o sin cookie de inicio');
+        return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=auth_failed`);
+    }
+
     passport.authenticate('google', { session: false }, (err, user, info) => {
         if (err) {
             console.error('❌ Error en autenticación:', err);
@@ -92,17 +121,8 @@ router.get('/google/callback', (req: Req, res: Res, next) => {
                 return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=login_failed`);
             }
 
-            const stateString = req.query.state as string;
-            let authOrigin = 'web';
-
-            let expoRedirectUri = '';
-            try {
-                const state = JSON.parse(stateString);
-                authOrigin = state.from || 'web';
-                expoRedirectUri = state.redirectUri || '';
-            } catch {
-                authOrigin = stateString || 'web';
-            }
+            const authOrigin = verifiedState.from;
+            const expoRedirectUri = verifiedState.redirectUri;
 
             // GUARDAR SESIÓN ANTES DE REDIRECT - ESTO ES CLAVE
             req.session.save((saveErr) => {
